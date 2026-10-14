@@ -1,0 +1,1 @@
+ALTER TABLE "waitlist" ADD COLUMN "source" text DEFAULT 'landing' NOT NULL;

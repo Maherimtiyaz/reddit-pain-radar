@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "pain_signals_dedupe_idx" ON "pain_signals" ("raw_post_id","theme",md5("verbatim_quote"));
