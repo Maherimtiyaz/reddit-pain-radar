@@ -1,0 +1,203 @@
+# Reddit Pain Radar — Landing Page
+
+Single-page marketing site for **Reddit Pain Radar**, a SaaS that scans Reddit
+communities, scores pain signals by urgency and willingness to pay, and delivers
+build-ready opportunity reports. The page has one job: convert visitors into
+early-access signups at $29/month.
+
+Built with **Next.js 16 (App Router)** and **Tailwind CSS v4**, and animated with
+**motion** (`motion/react`). Effects are hand-built in `components/ui` (no external
+UI registries).
+
+## Getting Started
+
+```bash
+npm install
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000).
+
+## Environment Variables
+
+Copy `.env.example` to `.env.local` and fill in as needed:
+
+| Variable                          | Purpose                                                                        |
+| --------------------------------- | ------------------------------------------------------------------------------ |
+| `NEXT_PUBLIC_STRIPE_PAYMENT_LINK` | CTA target. If unset, CTAs fall back to `#waitlist`.                           |
+| `NEXT_PUBLIC_SITE_URL`            | Canonical origin for metadata/sitemap (default `https://redditpainradar.com`). |
+| `DATABASE_URL`                    | PostgreSQL connection string used by Drizzle ORM (`db/`).                      |
+| `DATABASE_ADMIN_URL`              | Optional privileged (RLS-bypassing) connection for signup + API-key lookup.    |
+
+## Scripts
+
+```bash
+npm run dev          # dev server (localhost:3000)
+npm run build        # production build
+npm run start        # serve the production build
+npm run lint         # eslint
+npm run typecheck    # tsc --noEmit
+npm run format       # prettier --write .
+npm run format:check
+npm run db:generate  # generate SQL migrations from db/schema.ts
+npm run db:migrate   # apply pending migrations
+npm run db:push      # push schema directly (dev only)
+npm run db:studio    # Drizzle Studio
+npm run db:export:waitlist # waitlist -> CSV on stdout (`-- --out file.csv`)
+
+# local database harness (Docker)
+npm run db:up        # start Postgres on host port 5434 (two RLS roles)
+npm run db:down      # stop it
+npm run db:reset     # wipe -> migrate -> seed a fresh database
+npm run db:seed      # seed one tenant + evidence; prints an API key
+npm run api:smoke    # end-to-end v1 API smoke test (server must be running)
+```
+
+Always run `npm run typecheck`, `npm run lint`, and `npm run build` before shipping.
+
+## Backend API
+
+JSON endpoints under `app/api/v1/**`, authenticated with `Authorization: Bearer <api-key>`.
+An API key maps to an org; only its SHA-256 hash is stored.
+
+| Method             | Route                      | Purpose                                          |
+| ------------------ | -------------------------- | ------------------------------------------------ |
+| `GET`              | `/api/v1/me`               | Org behind the presented key.                    |
+| `GET` / `POST`     | `/api/v1/reports`          | List reports / generate one from stored signals. |
+| `GET`              | `/api/v1/reports/:id`      | One report, including `markdown` + `json`.       |
+| `GET` / `POST`     | `/api/v1/subreddits`       | List / track a subreddit.                        |
+| `DELETE`           | `/api/v1/subreddits/:id`   | Stop tracking a subreddit.                       |
+| `GET` / `POST`     | `/api/v1/keyword-sets`     | List / create a keyword set.                     |
+| `PATCH` / `DELETE` | `/api/v1/keyword-sets/:id` | Replace keywords / delete the set.               |
+| `GET` / `POST`     | `/api/v1/keys`             | List / mint a key (plaintext returned once).     |
+| `DELETE`           | `/api/v1/keys/:id`         | Revoke a key.                                    |
+
+`POST /api/v1/reports` accepts `{ subredditIds?, keywordSetId?, title? }`; when
+`keywordSetId` is given, the evidence is restricted to signals matching that
+set's keywords.
+
+Report generation is synchronous: `lib/reports/service.ts` validates that the
+requested subreddits and keyword set belong to the org, reads the shared
+`pain_signals` for those subreddits (optionally narrowed by keyword — matched
+case-insensitively against the post title/body and the quote), ranks them into
+themes (`lib/reports/generate.ts`), and stores the markdown + JSON on the report
+row.
+
+## Database
+
+The data layer lives in `db/` and uses **Drizzle ORM v1 (RC)** with
+**node-postgres**.
+
+- `db/schema.ts` — ten tables (`users`, `orgs`, `memberships`, `subreddits`,
+  `keyword_sets`, `raw_posts`, `pain_signals`, `reports`, `api_keys`, `waitlist`),
+  enums, indexes, relations, and the `tenant_isolation` RLS policies.
+- `db/index.ts` — pooled `pg` client wrapped by `drizzle()` (+ relations).
+- `db/tenant.ts` — `withTenant(orgId, fn)` runs a transaction with
+  `app.current_org_id` set so Postgres RLS restricts every org-scoped query.
+- `db/admin.ts` — privileged (RLS-bypassing) client for signup provisioning and
+  API-key → org lookup, via `DATABASE_ADMIN_URL`.
+- `db/queries.ts` — the DAL (subreddits, keyword sets, reports, API keys, and the
+  shared-evidence reader `fetchSignalsForReport` used by report generation).
+- `pain_signals` carries a unique dedupe index on
+  `(raw_post_id, theme, md5(verbatim_quote))`, so the Python extractor can be
+  re-run without creating duplicate signals.
+
+Migrations are committed under `drizzle/`. Generate after schema changes, then
+apply:
+
+```bash
+npm run db:generate
+npm run db:migrate
+```
+
+### Local database harness
+
+`docker-compose.yml` + `db/init/01-roles.sql` provision a disposable Postgres
+with **two roles**, so row-level security is exercised for real:
+
+- `rpr_owner` — owns the database and tables; migrations run as this role
+  (`DATABASE_ADMIN_URL`) and owners bypass RLS.
+- `rpr_app` — the runtime role (`DATABASE_URL`); a non-owner, so the
+  `tenant_isolation` policies actually apply.
+
+```bash
+npm run db:up      # Postgres on host port 5434 (5432/5433 may be other projects)
+npm run db:reset   # wipe -> migrate -> seed (fresh tenant + evidence)
+npm run dev        # start the app (PORT=3100 if 3000 is taken)
+npm run api:smoke  # 30+ assertions across every v1 route
+```
+
+`drizzle-kit` prefers `DATABASE_ADMIN_URL` so the migrator can create the
+`drizzle` schema and the owner-scoped policies; the app talks to `DATABASE_URL`
+as the non-owner role. `db:seed` writes its API key to `.seed/api-key`
+(gitignored), which `npm run api:smoke` reads.
+
+## Deploy
+
+Deploy on Vercel, then set the environment variables above in the project dashboard.
+
+```bash
+vercel --prod
+```
+
+## Project Structure
+
+```
+app/
+  layout.tsx             fonts, metadata, MotionProvider, dark-only shell
+  page.tsx               composes all sections + SoftwareApplication JSON-LD
+  globals.css            Tailwind v4 @theme tokens + keyframes
+  opengraph-image.tsx    generated OG image (ImageResponse)
+  icon.svg               favicon
+  sitemap.ts             /sitemap.xml
+  robots.ts              /robots.txt
+  api/v1/                JSON backend (route handlers), API-key authed
+components/
+  sections/              one file per page section (kebab-case)
+    announcement-bar.tsx  navbar.tsx        hero.tsx
+    social-proof.tsx      how-it-works.tsx  features.tsx
+    demo-report.tsx       testimonials.tsx  pricing.tsx
+    faq.tsx               final-cta.tsx     footer.tsx
+  ui/                    shadcn primitives + hand-built effect components
+    button.tsx input.tsx accordion.tsx
+    spotlight.tsx aurora-background.tsx bento-grid.tsx
+    animated-testimonials.tsx marquee.tsx
+    reveal.tsx count-up.tsx section.tsx
+  providers/
+    motion-provider.tsx  global reduced-motion config
+lib/
+  motion.ts              shared animation variants
+  copy.ts                all marketing copy
+  site.ts                site config, nav links, Stripe env
+  utils.ts               cn re-export
+  rate-limit.ts          in-memory fixed-window limiter
+  actions/waitlist.ts    joinWaitlist() server action
+  api/                   v1 API helpers (http, auth, validate)
+  auth/api-key.ts        API key generate/hash helpers
+  reports/               report generator (pure) + runReport service
+db/
+  schema.ts              tables, enums, relations, RLS policies, inferred types
+  index.ts               pooled pg client + drizzle() instance
+  tenant.ts              withTenant() RLS-scoped transaction helper
+  admin.ts               privileged (RLS-bypassing) drizzle instance
+  queries.ts             data-access layer
+scripts/
+  export-waitlist.ts     waitlist -> CSV export
+  db-seed.ts             seed the local harness (tenant + evidence + API key)
+  api-smoke.ts           end-to-end v1 API smoke test
+db/init/01-roles.sql     harness roles (rpr_owner / rpr_app)
+docker-compose.yml       local Postgres with RLS roles
+drizzle/                 generated SQL migrations (committed)
+drizzle.config.ts        drizzle-kit config
+```
+
+## Design Notes
+
+- **Dark only.** No light mode, no theme toggle, no `dark:` variants.
+- **Design tokens** live in `app/globals.css` under `@theme` and are used as
+  Tailwind utilities (`bg-canvas`, `text-ink`, `border-line`, `text-brand`, ...).
+- **Copy** is centralized in `lib/copy.ts`; edit there, not in the section files.
+- **Reduced motion** is handled by `MotionProvider` (`MotionConfig reducedMotion="user"`).
+  Never branch on `useReducedMotion()` during render.
+
+See `AGENTS.md` for the full conventions and verification checklist.
