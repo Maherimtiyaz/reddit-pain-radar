@@ -189,7 +189,30 @@ db/init/01-roles.sql     harness roles (rpr_owner / rpr_app)
 docker-compose.yml       local Postgres with RLS roles
 drizzle/                 generated SQL migrations (committed)
 drizzle.config.ts        drizzle-kit config
+reddit-pain-radar-worker/  standalone Python worker (separate uv project)
+  src/radar/             fetch -> extract -> score -> cluster -> report
+  tests/                 pytest suite (no DB or network needed)
 ```
+
+## Worker
+
+`reddit-pain-radar-worker/` is a self-contained Python project that populates the
+shared evidence tables (`raw_posts`, `pain_signals`) and generates scored
+opportunity reports. It has no web server and is not wired into the Next.js
+app.
+
+```bash
+cd reddit-pain-radar-worker
+uv sync                       # install dependencies
+uv run pytest                 # tests — must pass before any change ships
+uv run alembic upgrade head   # create tables
+uv run radar run              # full pipeline once: fetch -> extract -> score -> report
+uv run radar schedule         # APScheduler loop (default: cron 0 6 * * *)
+```
+
+See `reddit-pain-radar-worker/README.md` for the full pipeline description and
+`reddit-pain-radar-worker/AGENTS.md` for the conventions that govern it. The
+older `workers/` scripts remain as a simpler, script-style ingestion path.
 
 ## Design Notes
 

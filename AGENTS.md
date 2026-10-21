@@ -26,7 +26,7 @@ The page has one job: **convert visitors into early-access signups at $29/month*
 - **Icons:** Lucide React. Note: brand icons (`Twitter`, `Github`, `Linkedin`) were removed from lucide — inline the SVGs (see `components/sections/footer.tsx`).
 - **Fonts:** Geist Sans + Geist Mono via `next/font`.
 - **Database:** Drizzle ORM **v1 (RC)** + `node-postgres` (`pg`), migrations via `drizzle-kit`. Postgres RLS for tenant isolation (see Database section).
-- **Ingestion workers:** standalone Python 3 scripts in `workers/` (`requests` + `psycopg[binary]`), run directly with `python` — **not** wired into any npm script or the Next app (see Ingestion Workers section).
+- **Ingestion workers:** two independent Python paths. `workers/` holds legacy script-style ingestion (`requests` + `psycopg[binary]`), run directly with `python`. `reddit-pain-radar-worker/` is a standalone `uv` project (httpx, SQLAlchemy 2.0 + Alembic, DeepSeek via the OpenAI SDK, APScheduler) with its own CLI, schema, and `AGENTS.md`. Neither is wired into any npm script or the Next app (see Ingestion Workers section).
 - **Deployment:** Vercel.
 
 ### Next 16 / shadcn v4 gotchas
@@ -144,15 +144,23 @@ python workers/pain_extractor.py data/raw/<file>.json --json-out out.json --db-u
 /db/init
   01-roles.sql           # harness roles: rpr_owner (owner) + rpr_app (non-owner)
 docker-compose.yml       # local Postgres 16 on :5434, roles wired so RLS applies
-/workers                 # standalone Python ingestion pipeline (no npm wiring)
+/workers                 # legacy script-style Python ingestion pipeline (no npm wiring)
   reddit_client.py       # app-only OAuth client: fetch/search + raw JSON to data/raw
   pain_extractor.py      # regex filter -> DeepSeek -> raw_posts/pain_signals
   requirements.txt       # requests, psycopg[binary]
+/reddit-pain-radar-worker  # standalone Python worker (separate uv project; own rules)
+  src/radar/             # fetch -> extract -> score -> cluster -> report
+  tests/                 # pytest suite (no DB or network needed)
 /public                  # empty — OG image is generated, favicon is app/icon.svg
 /data                    # gitignored; workers write raw payloads to data/raw
 /drizzle                 # generated SQL migrations (committed)
 drizzle.config.ts        # drizzle-kit config (dialect postgresql, schema/out)
 ```
+
+`reddit-pain-radar-worker/` is a **self-contained Python project** with its own
+`AGENTS.md`; the repo-root rules below do **not** apply to those files. The
+Next.js app and the worker never import each other, and each owns its own
+schema (Drizzle here, Alembic there).
 
 **Rules:** each section lives in its own file under `/components/sections/`; `app/page.tsx` only imports and arranges sections.
 
