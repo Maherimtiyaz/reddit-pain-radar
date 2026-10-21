@@ -17,6 +17,10 @@ type Handler<Ctx> = (
  * the database is not configured, authenticate the `Bearer` key (`401`), then
  * convert unexpected errors into a JSON `500` instead of the framework's HTML
  * error page.
+ *
+ * Authentication runs inside the `try` as well, because resolving a key hits
+ * the database — a database outage there must still produce the documented
+ * `{ error: { message, code } }` envelope rather than an empty framework 500.
  */
 export function withAuth<Ctx = unknown>(handler: Handler<Ctx>) {
   return async (request: Request, ctx: Ctx): Promise<Response> => {
@@ -28,10 +32,10 @@ export function withAuth<Ctx = unknown>(handler: Handler<Ctx>) {
       );
     }
 
-    const principal = await authenticate(request);
-    if (!principal) return unauthorized();
-
     try {
+      const principal = await authenticate(request);
+      if (!principal) return unauthorized();
+
       return await handler(request, principal, ctx);
     } catch (error) {
       console.error("[api] unhandled error", error);
