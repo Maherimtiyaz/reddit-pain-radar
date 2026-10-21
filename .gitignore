@@ -37,6 +37,12 @@ yarn-error.log*
 # playwright mcp artifacts
 .playwright-mcp/
 
+# local dev server logs
+dev.err
+dev.out
+devserver.log
+*.log
+
 # vercel
 .vercel
 
