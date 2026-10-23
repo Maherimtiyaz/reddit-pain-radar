@@ -68,7 +68,7 @@ An API key maps to an org; only its SHA-256 hash is stored.
 
 | Method             | Route                      | Purpose                                          |
 | ------------------ | -------------------------- | ------------------------------------------------ |
-| `GET`              | `/api/v1/me`               | Org behind the presented key.                    |
+| `GET`              | `/api/v1/me`               | Org + plan limits (quota, usage) behind the key. |
 | `GET` / `POST`     | `/api/v1/reports`          | List reports / generate one from stored signals. |
 | `GET`              | `/api/v1/reports/:id`      | One report, including `markdown` + `json`.       |
 | `GET` / `POST`     | `/api/v1/subreddits`       | List / track a subreddit.                        |
@@ -81,6 +81,14 @@ An API key maps to an org; only its SHA-256 hash is stored.
 `POST /api/v1/reports` accepts `{ subredditIds?, keywordSetId?, title? }`; when
 `keywordSetId` is given, the evidence is restricted to signals matching that
 set's keywords.
+
+**Plan limits** (`lib/billing/limits.ts`) are enforced per calendar month
+(UTC), counting non-failed reports: **trial 3** (14 days from signup, then
+effectively 0 until checkout), **starter 50**, **pro 500**. Over-quota
+requests get `402 { error: { code: "plan_limit_reached" } }` (or
+`trial_expired`); `GET /api/v1/me` and every successful `POST /api/v1/reports`
+carry `reportQuota` / `reportsUsedThisMonth`, and `/me` also returns
+`effectivePlan` (trial expiry folded in).
 
 Report generation is synchronous: `lib/reports/service.ts` validates that the
 requested subreddits and keyword set belong to the org, reads the shared

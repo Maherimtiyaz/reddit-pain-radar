@@ -232,6 +232,41 @@ async function main(): Promise<void> {
     unknownKeywordSet.status,
   );
 
+  // -- plan quota (trial: 3 reports/month; two generated above) ----------
+  const third = await call("POST", "/api/v1/reports", { key, body: {} });
+  check(
+    "third report (quota boundary) -> 201",
+    third.status === 201,
+    third.status,
+  );
+  check(
+    "third report -> usage counters present",
+    get(third.json, "data.reportsUsedThisMonth") === 3 &&
+      get(third.json, "data.reportQuota") === 3,
+    third.json,
+  );
+
+  const fourth = await call("POST", "/api/v1/reports", { key, body: {} });
+  check(
+    "fourth report (over quota) -> 402",
+    fourth.status === 402,
+    fourth.status,
+  );
+  check(
+    "fourth report -> plan_limit_reached",
+    get(fourth.json, "error.code") === "plan_limit_reached",
+    fourth.json,
+  );
+
+  const meWithUsage = await call("GET", "/api/v1/me", { key });
+  check(
+    "GET /me -> quota surfaced (trial 3/3)",
+    get(meWithUsage.json, "data.effectivePlan") === "trial" &&
+      get(meWithUsage.json, "data.reportQuota") === 3 &&
+      get(meWithUsage.json, "data.reportsUsedThisMonth") === 3,
+    meWithUsage.json,
+  );
+
   const fetched = await call("GET", `/api/v1/reports/${String(reportId)}`, {
     key,
   });

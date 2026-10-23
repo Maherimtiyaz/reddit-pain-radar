@@ -1,4 +1,15 @@
-import { and, asc, desc, eq, ilike, inArray, or } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gte,
+  ilike,
+  inArray,
+  ne,
+  or,
+  sql,
+} from "drizzle-orm";
 
 import type { ReportSignal } from "@/lib/reports/generate";
 
@@ -380,6 +391,26 @@ export function updateReport(
       .where(and(eq(reports.orgId, orgId), eq(reports.id, id)))
       .returning();
     return rows[0] ?? null;
+  });
+}
+
+/**
+ * Counts quota-consuming reports created at/after `since`. Failed runs do
+ * not consume quota (a crash should not cost the customer a report).
+ */
+export function countReportsSince(orgId: string, since: Date): Promise<number> {
+  return withTenant(orgId, async (tx) => {
+    const rows = await tx
+      .select({ value: sql<number>`count(*)` })
+      .from(reports)
+      .where(
+        and(
+          eq(reports.orgId, orgId),
+          gte(reports.createdAt, since),
+          ne(reports.status, "failed"),
+        ),
+      );
+    return Number(rows[0]?.value ?? 0);
   });
 }
 
