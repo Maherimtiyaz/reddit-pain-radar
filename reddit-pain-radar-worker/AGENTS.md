@@ -20,8 +20,9 @@ uv run pytest                    # tests — must pass before any change ships
 uv run radar --help              # CLI sanity check
 uv run alembic upgrade head      # apply migrations (needs DATABASE_URL)
 uv run alembic upgrade head --sql  # verify migration DDL offline (no DB)
-uv run radar run | fetch | report | schedule
+uv run radar run | fetch | report | export | schedule
 uv run python scripts/seed_subreddits.py
+uv run python scripts/seed_evidence.py            # dev-only sample evidence (no API keys)
 ```
 
 There is **no CI and no linter config** in this project — `uv run pytest` is
@@ -67,6 +68,13 @@ the gate. Keep the test suite green; new behavior needs tests in `tests/`.
   into ≤10 themes as a JSON mapping.
 - Report lifecycle: `pending → generating → complete|failed`, with the
   `reports` row committed *before* generation so failures can be recorded.
+- **Evidence export contract:** `radar export` writes `rpr-evidence/v1`
+  JSONL (one post per line; `signals` contains only those with an
+  `llm_theme`) for the repo root's `npm run db:ingest`. The file format is a
+  cross-project contract — bump `EVIDENCE_SCHEMA_VERSION` on breaking
+  changes and update the importer in the same change. The worker DB and the
+  app DB are deliberately **separate databases** (table names collide by
+  design); never point this worker's `DATABASE_URL` at the app's database.
 - Reddit client: app-only OAuth, 60 req/min (aiolimiter), max 3 pages × 100
   posts, 429 backoff 1/2/4/8s, 401 → refresh once, 503 → log + empty list.
 

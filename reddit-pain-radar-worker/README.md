@@ -49,11 +49,18 @@ uv run radar fetch            # fetch + extract only (no report)
 uv run radar report           # report from already-stored signals (--since-hours N)
 uv run radar schedule         # APScheduler loop (default: cron 0 6 * * *)
 uv run radar run --no-email   # ...without sending the report email
+uv run radar export --out ../data/evidence.jsonl  # JSONL for the app's `npm run db:ingest`
 
 # equivalents without the CLI
 uv run python scripts/run_once.py --no-email
 uv run python scripts/seed_subreddits.py
+uv run python scripts/seed_evidence.py    # dev-only sample posts + signals (no API keys)
 ```
+
+`radar export` writes a versioned JSONL file (one post per line, with its
+scored signals) that the repo root's `npm run db:ingest` upserts into the
+app's `raw_posts`/`pain_signals` tables. The app database is a **different
+database** from this worker's — never point `DATABASE_URL` at it.
 
 With system cron instead of the built-in scheduler:
 

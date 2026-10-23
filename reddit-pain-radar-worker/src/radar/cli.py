@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Annotated
 
 import structlog
@@ -11,6 +12,7 @@ import typer
 
 from radar.config import get_settings
 from radar.db.session import session_scope
+from radar.export.evidence import export_evidence
 from radar.jobs.fetch_job import build_report, collect_posts, extract_signals, run_fetch_job
 from radar.jobs.scheduler import run_scheduler
 from radar.logging import configure_logging
@@ -122,6 +124,34 @@ def report_command(
         f"report_id={outcome.report_id} themes={outcome.themes} "
         f"signals={outcome.signals} emailed={outcome.emailed}"
     )
+
+
+@app.command("export")
+def export_command(
+    out: Annotated[
+        Path,
+        typer.Option("--out", help="JSONL file to write (one post per line)."),
+    ] = Path("data/evidence.jsonl"),
+    since_hours: Annotated[
+        int | None,
+        typer.Option("--since-hours", help="Only export posts from the last N hours."),
+    ] = None,
+) -> None:
+    """Export stored posts + scored signals as JSONL for the app importer."""
+    _init_logging()
+    since = (
+        datetime.now(timezone.utc) - timedelta(hours=since_hours)
+        if since_hours is not None
+        else None
+    )
+    try:
+        with session_scope() as session:
+            posts, signals = export_evidence(session, out, since=since)
+    except Exception as exc:
+        log.exception("export_failed")
+        typer.echo(f"export failed: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(f"posts={posts} signals={signals} out={out}")
 
 
 @app.command("schedule")
