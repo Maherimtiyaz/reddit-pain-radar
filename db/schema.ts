@@ -14,6 +14,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+import type Stripe from "stripe";
 
 /* ------------------------------------------------------------------ */
 /* Enums                                                               */
@@ -203,6 +204,29 @@ export const waitlist = pgTable("waitlist", {
 });
 
 /* ------------------------------------------------------------------ */
+/* Billing (global — Stripe webhook audit trail)                       */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Every Stripe webhook event we accepted, recorded after the handler
+ * succeeded. The unique `stripe_event_id` makes Stripe's automatic
+ * redeliveries visible (and auditable) even though each handler is
+ * idempotent on its own. Global like `waitlist` — no RLS, written through
+ * the privileged client.
+ */
+export const stripeEvents = pgTable(
+  "stripe_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    stripeEventId: text("stripe_event_id").notNull().unique(),
+    type: text("type").notNull(),
+    payload: jsonb("payload").$type<Stripe.Event>(),
+    createdAt: now(),
+  },
+  (t) => [index("stripe_events_type_idx").on(t.type)],
+);
+
+/* ------------------------------------------------------------------ */
 /* Reports & API keys (org-scoped)                                     */
 /* ------------------------------------------------------------------ */
 
@@ -326,5 +350,7 @@ export type Report = typeof reports.$inferSelect;
 export type NewReport = typeof reports.$inferInsert;
 export type ApiKey = typeof apiKeys.$inferSelect;
 export type NewApiKey = typeof apiKeys.$inferInsert;
+export type StripeEvent = typeof stripeEvents.$inferSelect;
+export type NewStripeEvent = typeof stripeEvents.$inferInsert;
 export type Waitlist = typeof waitlist.$inferSelect;
 export type NewWaitlist = typeof waitlist.$inferInsert;
