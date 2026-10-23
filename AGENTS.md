@@ -150,6 +150,7 @@ python workers/pain_extractor.py data/raw/<file>.json --json-out out.json --db-u
 /scripts
   export-waitlist.ts     # `npm run db:export:waitlist` — CSV export (no admin route)
   db-seed.ts             # `npm run db:seed` — tenant + evidence + API key for the harness
+  ingest-evidence.ts     # `npm run db:ingest` — worker JSONL -> raw_posts/pain_signals
   api-smoke.ts           # `npm run api:smoke` — end-to-end v1 API assertions
   stripe-webhook-smoke.ts # `npm run stripe:smoke` — billing webhook assertions (signed synthetic events)
 /db/init
@@ -163,7 +164,7 @@ docker-compose.yml       # local Postgres 16 on :5434, roles wired so RLS applie
   src/radar/             # fetch -> extract -> score -> cluster -> report
   tests/                 # pytest suite (no DB or network needed)
 /public                  # empty — OG image is generated, favicon is app/icon.svg
-/data                    # gitignored; workers write raw payloads to data/raw
+/data                    # gitignored; raw payloads (data/raw) + exported evidence (evidence.jsonl)
 /drizzle                 # generated SQL migrations (committed)
 drizzle.config.ts        # drizzle-kit config (dialect postgresql, schema/out)
 ```
@@ -199,6 +200,7 @@ schema (Drizzle here, Alembic there).
 - `workers/reddit_client.py` — app-only (client-credentials) OAuth client with token-bucket rate limiting (60/min), 429/5xx backoff, and pagination. Persists every raw JSON response to `data/raw/` **before** parsing (gitignored). CLI: `fetch <subreddit> --limit --timeframe` or `search <query> <subreddit> --limit`.
 - `workers/pain_extractor.py` — cheap regex prefilter (`PAIN_PATTERNS`) then one DeepSeek chat completion per qualifying post (bounded to 10 concurrent threads). Writes signals to JSON (`--json-out`) and/or upserts `raw_posts` + idempotently inserts `pain_signals` (`--db-url`). The system prompt is overridable via `REDDIT_PAIN_CLUSTER_PROMPT`.
 - `workers/requirements.txt` pins `requests` and `psycopg[binary]`; there is no `pyproject.toml`/lockfile. Both scripts honor `LOG_LEVEL`.
+- **Evidence bridge (worker → app):** the worker owns ingestion in its **own database** (Alembic schema; table names collide with the app's Drizzle schema by design, so the two DBs must never be merged). Evidence crosses the seam as a versioned file, not a shared connection: `uv run radar export --out ../data/evidence.jsonl` (worker DB → `rpr-evidence/v1` JSONL; unthemed signals dropped), then `npm run db:ingest -- data/evidence.jsonl` (file → `raw_posts`/`pain_signals`, idempotent: posts upsert by `reddit_id` keeping row UUIDs, signals no-op against the dedupe index). `scripts/seed_evidence.py` (worker) + the importer cover the whole loop locally without Reddit/DeepSeek keys — see the README's "Feeding the app" section.
 
 ## Backend API (v1)
 

@@ -19,6 +19,7 @@
     "db:down": "docker compose down",
     "db:reset": "docker compose down -v && docker compose up -d --wait && npm run db:migrate && npm run db:seed",
     "db:seed": "tsx scripts/db-seed.ts",
+"db:ingest": "tsx scripts/ingest-evidence.ts",
     "api:smoke": "tsx scripts/api-smoke.ts",
     "stripe:smoke": "tsx scripts/stripe-webhook-smoke.ts"
   },
