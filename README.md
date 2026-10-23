@@ -28,6 +28,11 @@ Copy `.env.example` to `.env.local` and fill in as needed:
 | `NEXT_PUBLIC_SITE_URL`            | Canonical origin for metadata/sitemap (default `https://redditpainradar.com`). |
 | `DATABASE_URL`                    | PostgreSQL connection string used by Drizzle ORM (`db/`).                      |
 | `DATABASE_ADMIN_URL`              | Optional privileged (RLS-bypassing) connection for signup + API-key lookup.    |
+| `STRIPE_SECRET_KEY`               | Stripe API key used by the billing webhook.                                    |
+| `STRIPE_WEBHOOK_SECRET`           | Signature secret for `POST /api/webhooks/stripe`.                              |
+| `STRIPE_PRICE_STARTER` / `_PRO`   | Optional price ids mapped to plans; defaults to Starter.                       |
+| `RESEND_API_KEY`                  | Transactional email (welcome key). Unset → emails are logged, not sent.        |
+| `EMAIL_FROM`                      | Optional Resend from-address (default `onboarding@resend.dev`).                |
 
 ## Scripts
 
@@ -51,6 +56,7 @@ npm run db:down      # stop it
 npm run db:reset     # wipe -> migrate -> seed a fresh database
 npm run db:seed      # seed one tenant + evidence; prints an API key
 npm run api:smoke    # end-to-end v1 API smoke test (server must be running)
+npm run stripe:smoke # end-to-end billing webhook test (server + secret must match)
 ```
 
 Always run `npm run typecheck`, `npm run lint`, and `npm run build` before shipping.
@@ -83,14 +89,35 @@ case-insensitively against the post title/body and the quote), ranks them into
 themes (`lib/reports/generate.ts`), and stores the markdown + JSON on the report
 row.
 
+### Billing webhook
+
+`POST /api/webhooks/stripe` (unauthenticated — authenticity comes from the
+`Stripe-Signature` header verified with `STRIPE_WEBHOOK_SECRET`) turns a
+Stripe checkout into a live account:
+
+- `checkout.session.completed` — creates the org + owner, records the Stripe
+  customer, mints the first API key, and emails it via Resend (logged to the
+  server console when `RESEND_API_KEY` is unset). Redeliveries never mint a
+  second key.
+- `customer.subscription.updated` — syncs `orgs.plan`; non-active/unpaid
+  subscriptions fall back to `trial`.
+- `customer.subscription.deleted` — downgrades the org to `trial`.
+- `invoice.payment_failed` — audit log only (downgrades ride in on the
+  subscription event above).
+
+Every accepted event is recorded in `stripe_events` (unique
+`stripe_event_id`) for audit. `npm run stripe:smoke` exercises the whole
+flow offline by signing synthetic events.
+
 ## Database
 
 The data layer lives in `db/` and uses **Drizzle ORM v1 (RC)** with
 **node-postgres**.
 
-- `db/schema.ts` — ten tables (`users`, `orgs`, `memberships`, `subreddits`,
-  `keyword_sets`, `raw_posts`, `pain_signals`, `reports`, `api_keys`, `waitlist`),
-  enums, indexes, relations, and the `tenant_isolation` RLS policies.
+- `db/schema.ts` — eleven tables (`users`, `orgs`, `memberships`, `subreddits`,
+  `keyword_sets`, `raw_posts`, `pain_signals`, `reports`, `api_keys`,
+  `stripe_events`, `waitlist`), enums, indexes, relations, and the
+  `tenant_isolation` RLS policies.
 - `db/index.ts` — pooled `pg` client wrapped by `drizzle()` (+ relations).
 - `db/tenant.ts` — `withTenant(orgId, fn)` runs a transaction with
   `app.current_org_id` set so Postgres RLS restricts every org-scoped query.

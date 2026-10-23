@@ -14,6 +14,7 @@ import {
   reports,
   subreddits,
   users,
+  type Org,
   type ReportJson,
 } from "./schema";
 import { withTenant } from "./tenant";
@@ -28,12 +29,17 @@ export type ReportStatus = "queued" | "running" | "complete" | "failed";
  * Creates/or reuses a user, then creates their org and owner membership.
  * Runs on the privileged connection because RLS denies writes before
  * `app.current_org_id` exists.
+ *
+ * `stripeCustomerId` / `plan` are set by the Stripe checkout webhook so
+ * subscription lifecycle events can find (and re-plan) the org later.
  */
 export async function createOrgWithOwner(input: {
   email: string;
   name?: string | null;
   orgName: string;
   slug: string;
+  stripeCustomerId?: string;
+  plan?: "trial" | "starter" | "pro";
 }): Promise<{ userId: string; orgId: string }> {
   return adminDb.transaction(async (tx) => {
     const existing = await tx
@@ -53,7 +59,12 @@ export async function createOrgWithOwner(input: {
 
     const insertedOrgs = await tx
       .insert(orgs)
-      .values({ name: input.orgName, slug: input.slug })
+      .values({
+        name: input.orgName,
+        slug: input.slug,
+        stripeCustomerId: input.stripeCustomerId ?? null,
+        plan: input.plan ?? "trial",
+      })
       .returning({ id: orgs.id });
 
     const orgId = insertedOrgs[0].id;
@@ -85,6 +96,32 @@ export async function findPrincipalByKeyHash(
     .where(eq(apiKeys.keyHash, keyHash))
     .limit(1);
   return rows[0] ?? null;
+}
+
+/**
+ * Finds the org behind a Stripe customer id. Privileged: used by the billing
+ * webhook before any tenant context exists. Returns `null` for unknown ids.
+ */
+export async function findOrgByStripeCustomerId(
+  stripeCustomerId: string,
+): Promise<Org | null> {
+  const rows = await adminDb
+    .select()
+    .from(orgs)
+    .where(eq(orgs.stripeCustomerId, stripeCustomerId))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+/**
+ * Absolute plan write driven by Stripe subscription lifecycle events.
+ * Privileged: `orgs` is RLS-protected and billing runs outside a tenant.
+ */
+export async function setOrgPlan(
+  orgId: string,
+  plan: "trial" | "starter" | "pro",
+): Promise<void> {
+  await adminDb.update(orgs).set({ plan }).where(eq(orgs.id, orgId));
 }
 
 /** Best-effort usage stamp; failures must never break the request. */
