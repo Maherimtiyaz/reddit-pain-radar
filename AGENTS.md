@@ -52,6 +52,7 @@ npm run db:migrate  # apply pending migrations
 npm run db:push     # push schema directly (dev only)
 npm run db:studio   # Drizzle Studio
 npm run db:export:waitlist # landing waitlist -> CSV on stdout (append `-- --out file.csv`)
+npm run evidence:sync     # cron entry point: radar fetch -> export -> db:ingest
 
 # local database harness (Docker Postgres on host port 5434, two RLS roles)
 npm run db:up       # start Postgres
@@ -151,6 +152,9 @@ python workers/pain_extractor.py data/raw/<file>.json --json-out out.json --db-u
   export-waitlist.ts     # `npm run db:export:waitlist` — CSV export (no admin route)
   db-seed.ts             # `npm run db:seed` — tenant + evidence + API key for the harness
   ingest-evidence.ts     # `npm run db:ingest` — worker JSONL -> raw_posts/pain_signals
+  sync-evidence.ts       # `npm run evidence:sync` — cron entry point: fetch -> export -> ingest
+  /lib
+    evidence.ts          # shared rpr-evidence/v1 parse + idempotent import (both scripts use it)
   api-smoke.ts           # `npm run api:smoke` — end-to-end v1 API assertions
   stripe-webhook-smoke.ts # `npm run stripe:smoke` — billing webhook assertions (signed synthetic events)
 /db/init
@@ -201,6 +205,7 @@ schema (Drizzle here, Alembic there).
 - `workers/pain_extractor.py` — cheap regex prefilter (`PAIN_PATTERNS`) then one DeepSeek chat completion per qualifying post (bounded to 10 concurrent threads). Writes signals to JSON (`--json-out`) and/or upserts `raw_posts` + idempotently inserts `pain_signals` (`--db-url`). The system prompt is overridable via `REDDIT_PAIN_CLUSTER_PROMPT`.
 - `workers/requirements.txt` pins `requests` and `psycopg[binary]`; there is no `pyproject.toml`/lockfile. Both scripts honor `LOG_LEVEL`.
 - **Evidence bridge (worker → app):** the worker owns ingestion in its **own database** (Alembic schema; table names collide with the app's Drizzle schema by design, so the two DBs must never be merged). Evidence crosses the seam as a versioned file, not a shared connection: `uv run radar export --out ../data/evidence.jsonl` (worker DB → `rpr-evidence/v1` JSONL; unthemed signals dropped), then `npm run db:ingest -- data/evidence.jsonl` (file → `raw_posts`/`pain_signals`, idempotent: posts upsert by `reddit_id` keeping row UUIDs, signals no-op against the dedupe index). `scripts/seed_evidence.py` (worker) + the importer cover the whole loop locally without Reddit/DeepSeek keys — see the README's "Feeding the app" section.
+- **Bridge automation:** `npm run evidence:sync` (`scripts/sync-evidence.ts`) is the cron entry point: `radar fetch` (warn-and-continue on failure) → `radar export` → in-process import via `scripts/lib/evidence.ts`. It **strips the app's `DATABASE_URL` from the worker subprocess env** — the worker's Settings prefer process env over its `.env`, and leaking the app's URL would make it query the app schema (shared table names, different columns). `--skip-fetch` / `EVIDENCE_SKIP_FETCH=1` skip stage 1. `npm run db:reset` wipes the whole Postgres volume, worker DB included: restore it with `uv run alembic upgrade head` + `seed_evidence.py`.
 
 ## Backend API (v1)
 

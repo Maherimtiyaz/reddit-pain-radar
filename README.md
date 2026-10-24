@@ -268,6 +268,29 @@ fetch → export → ingest without dedupe bookkeeping.
 realistic sample evidence (no Reddit/DeepSeek keys) to exercise the whole
 bridge locally.
 
+For a single scheduled command, the orchestrator runs all three stages:
+
+```bash
+npm run evidence:sync                    # fetch -> export -> ingest (cron entry point)
+npm run evidence:sync -- --skip-fetch    # export + ingest only (bash/cmd)
+# PowerShell: $env:EVIDENCE_SKIP_FETCH = "1"; npm run evidence:sync
+```
+
+A failed fetch only warns (so export+ingest still move what the worker DB
+already holds); export/ingest failures exit non-zero for cron to notice.
+The orchestrator strips the app's `DATABASE_URL` from the worker's
+environment — the worker always resolves its own from
+`reddit-pain-radar-worker/.env`, and the two must never cross.
+
+```cron
+0 6 * * * cd /path/to/reddit-pain-radar && npm run evidence:sync
+```
+
+Note: `npm run db:reset` recreates the whole Postgres volume, **worker
+database included** — after a reset, restore it with
+`uv run alembic upgrade head` + `uv run python scripts/seed_evidence.py`
+(or a real `uv run radar fetch`).
+
 See `reddit-pain-radar-worker/README.md` for the full pipeline description and
 `reddit-pain-radar-worker/AGENTS.md` for the conventions that govern it. The
 older `workers/` scripts remain as a simpler, script-style ingestion path.
