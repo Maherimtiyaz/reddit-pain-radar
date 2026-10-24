@@ -60,10 +60,9 @@ export function Navbar() {
   return (
     <header
       className={cn(
-        "sticky top-0 z-50 border-b transition-colors duration-300",
-        scrolled || open
-          ? "border-line bg-canvas/80 backdrop-blur-md"
-          : "border-transparent",
+        "sticky top-0 z-50 transition-colors duration-300",
+        scrolled &&
+          "from-canvas/85 via-canvas/45 bg-gradient-to-b to-transparent",
       )}
     >
       <Container className="flex h-16 items-center justify-between gap-4">
