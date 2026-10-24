@@ -152,6 +152,19 @@ async function main(): Promise<void> {
 
   console.log(`\nStripe webhook smoke test against ${BASE_URL}\n`);
 
+  // -- self-serve checkout entry ------------------------------------------
+  // The smoke server runs without STRIPE_PRICE_STARTER, so the endpoint must
+  // degrade to the waitlist anchor instead of erroring (no Stripe API call).
+  const checkout = await fetch(`${BASE_URL}/api/checkout`, {
+    redirect: "manual",
+  });
+  const checkoutLocation = checkout.headers.get("location") ?? "";
+  check(
+    "GET /api/checkout (no price configured) -> 302 to waitlist",
+    checkout.status === 302 && checkoutLocation.endsWith("/#waitlist"),
+    { status: checkout.status, location: checkoutLocation },
+  );
+
   // -- misconfiguration & signature guards ------------------------------
   const noSignature = await post(checkoutEvent({ email, customerId }), {
     signature: null,
