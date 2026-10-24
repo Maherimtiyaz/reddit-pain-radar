@@ -8,7 +8,7 @@ import { Container } from "@/components/ui/section";
 import { navLinks, site } from "@/lib/site";
 import { cn } from "@/lib/utils";
 
-const ctaHref = site.stripePaymentLink || "#waitlist";
+const ctaHref = "/api/checkout";
 
 function Logo() {
   return (

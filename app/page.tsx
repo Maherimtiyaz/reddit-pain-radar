@@ -1,4 +1,5 @@
 import { AnnouncementBar } from "@/components/sections/announcement-bar";
+import { CheckoutSuccess } from "@/components/sections/checkout-success";
 import { DemoReport } from "@/components/sections/demo-report";
 import { Faq } from "@/components/sections/faq";
 import { Features } from "@/components/sections/features";
@@ -35,6 +36,7 @@ export default function Home() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
       <AnnouncementBar />
+      <CheckoutSuccess />
       <Navbar />
       <main className="flex-1">
         <Hero />

@@ -195,6 +195,13 @@ export const finalCta = {
   trust: "No spam. Unsubscribe anytime.",
 } as const;
 
+export const checkoutSuccess = {
+  title: "Payment received",
+  body: "Your API key is on its way to your inbox — usually under a minute.",
+  help: "Nothing after a few minutes? Check spam, or email",
+  dismiss: "Dismiss",
+} as const;
+
 export const footer = {
   tagline: "Scored pain-point reports mined from Reddit communities.",
   columns: [

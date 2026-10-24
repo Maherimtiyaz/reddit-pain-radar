@@ -11,9 +11,8 @@ import { Container } from "@/components/ui/section";
 import { Spotlight } from "@/components/ui/spotlight";
 import { hero } from "@/lib/copy";
 import { staggerContainer, staggerItem } from "@/lib/motion";
-import { site } from "@/lib/site";
 
-const ctaHref = site.stripePaymentLink || "#waitlist";
+const ctaHref = "/api/checkout";
 
 function ScoreRing() {
   const radius = 30;

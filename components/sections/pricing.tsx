@@ -4,9 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Reveal } from "@/components/ui/reveal";
 import { Container, Section, SectionHeading } from "@/components/ui/section";
 import { pricing } from "@/lib/copy";
-import { site } from "@/lib/site";
 
-const ctaHref = site.stripePaymentLink || "#waitlist";
+const ctaHref = "/api/checkout";
 
 export function Pricing() {
   return (

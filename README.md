@@ -30,7 +30,7 @@ Copy `.env.example` to `.env.local` and fill in as needed:
 | `DATABASE_ADMIN_URL`              | Optional privileged (RLS-bypassing) connection for signup + API-key lookup.    |
 | `STRIPE_SECRET_KEY`               | Stripe API key used by the billing webhook.                                    |
 | `STRIPE_WEBHOOK_SECRET`           | Signature secret for `POST /api/webhooks/stripe`.                              |
-| `STRIPE_PRICE_STARTER` / `_PRO`   | Optional price ids mapped to plans; defaults to Starter.                       |
+| `STRIPE_PRICE_STARTER` / `_PRO`   | Price ids mapped to plans; `_STARTER` powers `GET /api/checkout`.        |
 | `RESEND_API_KEY`                  | Transactional email (welcome key). Unset → emails are logged, not sent.        |
 | `EMAIL_FROM`                      | Optional Resend from-address (default `onboarding@resend.dev`).                |
 
@@ -96,6 +96,19 @@ requested subreddits and keyword set belong to the org, reads the shared
 case-insensitively against the post title/body and the quote), ranks them into
 themes (`lib/reports/generate.ts`), and stores the markdown + JSON on the report
 row.
+
+### Self-serve checkout
+
+All landing CTAs are plain links to **`GET /api/checkout`**, which redirects
+into Stripe's hosted subscription Checkout when `STRIPE_SECRET_KEY` and
+`STRIPE_PRICE_STARTER` are set (with `metadata.plan = "starter"`, feeding the
+provisioning webhook below). Unconfigured installs — or a Stripe error —
+degrade to `NEXT_PUBLIC_STRIPE_PAYMENT_LINK`, then the on-page `#waitlist`,
+so a partially-configured deploy never shows a dead CTA. The endpoint is
+rate-limited per IP (10/min, in-memory). Success returns to
+`/?checkout=success`, where a dismissible banner
+(`components/sections/checkout-success.tsx`) confirms the API key email is
+on its way; cancel returns to `#pricing`.
 
 ### Billing webhook
 

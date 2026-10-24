@@ -10,9 +10,8 @@ import { Reveal } from "@/components/ui/reveal";
 import { Container, Section, SectionHeading } from "@/components/ui/section";
 import { demo } from "@/lib/copy";
 import { EASE } from "@/lib/motion";
-import { site } from "@/lib/site";
 
-const ctaHref = site.stripePaymentLink || "#waitlist";
+const ctaHref = "/api/checkout";
 
 function AnimatedBar({ label, value }: { label: string; value: number }) {
   return (
