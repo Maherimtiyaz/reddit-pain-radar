@@ -53,9 +53,8 @@ __pycache__/
 venv/
 .pytest_cache/
 
-# raw ingestion payloads
-/data/raw/
-/data/processed/
+# local ingestion artifacts (raw payloads, processed dumps, exported evidence)
+/data/
 
 # local seed artifacts (API key printed by scripts/db-seed.ts)
 /.seed/
