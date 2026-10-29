@@ -86,7 +86,13 @@ export function Navbar() {
           ))}
         </nav>
 
-        <div className="hidden md:block">
+        <div className="hidden items-center gap-4 md:flex">
+          <a
+            href="/login"
+            className="text-ink-muted hover:text-ink text-sm transition-colors"
+          >
+            Sign in
+          </a>
           <Button asChild className="h-11 px-5">
             <a href={ctaHref}>Get early access</a>
           </Button>
@@ -116,6 +122,13 @@ export function Navbar() {
                 {link.label}
               </a>
             ))}
+            <a
+              href="/login"
+              onClick={() => setOpen(false)}
+              className="text-ink-muted hover:bg-surface hover:text-ink rounded-lg px-3 py-3 text-base transition-colors"
+            >
+              Sign in
+            </a>
             <Button asChild className="mt-3 h-12 text-base">
               <a href={ctaHref} onClick={() => setOpen(false)}>
                 Get early access

@@ -215,30 +215,18 @@ export const footer = {
       ],
     },
     {
-      title: "Company",
-      links: [
-        { label: "About", href: "#" },
-        { label: "Blog", href: "#" },
-        { label: "Careers", href: "#" },
-        { label: "Contact", href: "#waitlist" },
-      ],
-    },
-    {
       title: "Resources",
       links: [
         { label: "FAQ", href: "#faq" },
-        { label: "API docs", href: "#" },
-        { label: "Changelog", href: "#" },
-        { label: "Status", href: "#" },
+        { label: "Sign in", href: "/login" },
+        { label: "Contact", href: "#waitlist" },
       ],
     },
     {
       title: "Legal",
       links: [
-        { label: "Privacy", href: "#" },
-        { label: "Terms", href: "#" },
-        { label: "Security", href: "#" },
-        { label: "Cookies", href: "#" },
+        { label: "Privacy", href: "/privacy" },
+        { label: "Terms", href: "/terms" },
       ],
     },
   ],

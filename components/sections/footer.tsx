@@ -1,6 +1,13 @@
+import Link from "next/link";
+
 import { Container } from "@/components/ui/section";
 import { footer } from "@/lib/copy";
 import { site } from "@/lib/site";
+
+/** In-site routes get client-side navigation; in-page anchors stay plain links. */
+function isRoute(href: string): boolean {
+  return href.startsWith("/");
+}
 
 function SocialIcon({ label }: { label: string }) {
   const common = {
@@ -98,12 +105,21 @@ export function Footer() {
               <ul className="mt-4 flex flex-col gap-3">
                 {column.links.map((link) => (
                   <li key={link.label}>
-                    <a
-                      href={link.href}
-                      className="text-ink-muted hover:text-ink text-sm transition-colors"
-                    >
-                      {link.label}
-                    </a>
+                    {isRoute(link.href) ? (
+                      <Link
+                        href={link.href}
+                        className="text-ink-muted hover:text-ink text-sm transition-colors"
+                      >
+                        {link.label}
+                      </Link>
+                    ) : (
+                      <a
+                        href={link.href}
+                        className="text-ink-muted hover:text-ink text-sm transition-colors"
+                      >
+                        {link.label}
+                      </a>
+                    )}
                   </li>
                 ))}
               </ul>

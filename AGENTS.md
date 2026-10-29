@@ -113,6 +113,10 @@ auth.ts                  # NextAuth config: adapter, Resend provider, session ca
     layout.tsx           # protected shell + sign out
     page.tsx             # org, plan/quota, reports, subreddits, keys
     reports/[id]/page.tsx# full markdown of one report
+  /privacy
+    page.tsx             # privacy policy (static, shared legal shell)
+  /terms
+    page.tsx             # terms of service (static, shared legal shell)
   /api/auth/[...nextauth]
     route.ts             # Auth.js handlers (magic link, callback, session, signout)
   /api/v1                # JSON backend (route handlers), API-key authed
@@ -143,6 +147,8 @@ auth.ts                  # NextAuth config: adapter, Resend provider, session ca
     reveal.tsx count-up.tsx section.tsx
   /providers
     motion-provider.tsx  # MotionConfig reducedMotion="user"
+  /legal
+    legal-page.tsx       # shared shell for /privacy and /terms (prose, updated date)
 /lib
   motion.ts              # shared variants (fadeUp, stagger*, scaleIn, ...)
   copy.ts                # all marketing copy
@@ -348,7 +354,7 @@ The Python workers read additional server-only vars (never exposed to the client
 - Use light mode or a theme toggle.
 - Use `dark:` Tailwind variants.
 - Use generic placeholder images — use SVG/CSS mockups, gradients, or the hand-built effect components.
-- Add **marketing pages** beyond the single landing page (no `/blog`, `/docs`, `/pricing`). App routes (`/login`, `/dashboard/**`) and backend JSON route handlers under `app/api/**` are expected and OK.
+- Add **marketing pages** beyond the single landing page (no `/blog`, `/docs`, `/pricing`). App routes (`/login`, `/dashboard/**`, `/privacy`, `/terms`) and backend JSON route handlers under `app/api/**` are expected and OK.
 - Pull in UI libraries beyond shadcn/ui + hand-built Aceternity-style patterns.
 - Add unnecessary dependencies.
 - Write CSS outside Tailwind classes (except `@theme` tokens/keyframes in `globals.css`).
