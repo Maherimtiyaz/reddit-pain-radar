@@ -159,7 +159,7 @@ auth.ts                  # NextAuth config: adapter, Resend provider, session ca
     waitlist.ts          # "use server" — joinWaitlist() email capture (+throttle, source)
     auth.ts              # "use server" — requestMagicLink() / signOutAction()
   /api                   # helpers for the v1 route handlers
-    http.ts              # json() / apiError() / unauthorized()
+    http.ts              # json() / apiError() / unauthorized() / serviceUnavailable()
     auth.ts              # authenticate(req) -> { orgId, keyId } from a Bearer key
     validate.ts          # dependency-free body parsers (reports, subreddits, keys)
   /auth
@@ -262,7 +262,7 @@ JSON route handlers under `app/api/v1/**`. They are part of the backend only —
   - `GET|POST /api/v1/keyword-sets` · `PATCH|DELETE /api/v1/keyword-sets/:id`.
   - `GET|POST /api/v1/keys` · `DELETE /api/v1/keys/:id`.
 - **Report generation:** `lib/reports/service.ts#runReport` resolves and **validates ownership of** subreddits (unknown ids → error, not silently dropped) and the optional keyword set → `fetchSignalsForReport` (subreddit + keyword filter) → `lib/reports/generate.ts` (pure: groups themes case-insensitively, averages `urgency`/`wtp`/`composite`, keeps the strongest quotes, renders markdown) → persists `status: complete` + `markdown_content` + `json_content`. On failure the row is marked `failed`. Synchronous is fine at landing scale; the seam to move behind a queue is `createReport({ status: "queued" })` + a worker finishing it.
-- **Validation:** `lib/api/validate.ts` — dependency-free parsers (no zod). IDs are UUID-checked before hitting Postgres; subreddit names are normalized (strip `r/`, 2–21 word chars). Responses are `{ data }` or `{ error: { message, code } }`.
+- **Validation:** `lib/api/validate.ts` — dependency-free parsers (no zod). IDs are UUID-checked before hitting Postgres; subreddit names are normalized (strip `r/`, 2–21 word chars). Responses are `{ data }` or `{ error: { message, code } }`. An unreachable database (socket errors, SQLSTATE `08xxx`, shutdown/too-many-clients) answers `503 { code: "unavailable" }` with `Retry-After: 5` instead of a `500`, so callers can tell an outage from a bad request.
 - Route handlers read the request, so they are dynamic by default (Next 16 GET handlers are no longer statically cached). `params` is a **Promise** — `const { id } = await ctx.params`.
 
 ## Authentication & Dashboard

@@ -22,3 +22,16 @@ export function apiError(
 export function unauthorized(): NextResponse<ApiErrorBody> {
   return apiError(401, "Missing or invalid API key.", "unauthorized");
 }
+
+/**
+ * A `503` for "the API exists but cannot serve right now" — unset credentials
+ * or an unreachable database. The shared `unavailable` code and `Retry-After`
+ * tell clients this is transient, not a bug in their request.
+ */
+export function serviceUnavailable(
+  message = "Service temporarily unavailable. Please retry shortly.",
+): NextResponse<ApiErrorBody> {
+  const response = apiError(503, message, "unavailable");
+  response.headers.set("Retry-After", "5");
+  return response;
+}
