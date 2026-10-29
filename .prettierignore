@@ -1,5 +1,6 @@
 .next
 node_modules
+drizzle
 package-lock.json
 next-env.d.ts
 public

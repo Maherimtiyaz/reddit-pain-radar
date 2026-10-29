@@ -18,21 +18,33 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
+To exercise the authenticated account area, run the local database harness and
+start the dev server on the port that matches `AUTH_URL` (3100 by default in
+`.env.example`):
+
+```bash
+npm run db:up
+npm run db:reset        # applies migrations, seeds founder@redditpainradar.test
+$env:PORT=3100; npm run dev   # PowerShell
+```
+
 ## Environment Variables
 
 Copy `.env.example` to `.env.local` and fill in as needed:
 
-| Variable                          | Purpose                                                                        |
-| --------------------------------- | ------------------------------------------------------------------------------ |
-| `NEXT_PUBLIC_STRIPE_PAYMENT_LINK` | CTA target. If unset, CTAs fall back to `#waitlist`.                           |
-| `NEXT_PUBLIC_SITE_URL`            | Canonical origin for metadata/sitemap (default `https://redditpainradar.com`). |
-| `DATABASE_URL`                    | PostgreSQL connection string used by Drizzle ORM (`db/`).                      |
-| `DATABASE_ADMIN_URL`              | Optional privileged (RLS-bypassing) connection for signup + API-key lookup.    |
-| `STRIPE_SECRET_KEY`               | Stripe API key used by the billing webhook.                                    |
-| `STRIPE_WEBHOOK_SECRET`           | Signature secret for `POST /api/webhooks/stripe`.                              |
-| `STRIPE_PRICE_STARTER` / `_PRO`   | Price ids mapped to plans; `_STARTER` powers `GET /api/checkout`.        |
-| `RESEND_API_KEY`                  | Transactional email (welcome key). Unset → emails are logged, not sent.        |
-| `EMAIL_FROM`                      | Optional Resend from-address (default `onboarding@resend.dev`).                |
+| Variable                          | Purpose                                                                              |
+| --------------------------------- | ------------------------------------------------------------------------------------ |
+| `NEXT_PUBLIC_STRIPE_PAYMENT_LINK` | CTA target. If unset, CTAs fall back to `#waitlist`.                                 |
+| `NEXT_PUBLIC_SITE_URL`            | Canonical origin for metadata/sitemap (default `https://redditpainradar.com`).       |
+| `DATABASE_URL`                    | PostgreSQL connection string used by Drizzle ORM (`db/`).                            |
+| `DATABASE_ADMIN_URL`              | Optional privileged (RLS-bypassing) connection for signup + API-key lookup.          |
+| `STRIPE_SECRET_KEY`               | Stripe API key used by the billing webhook.                                          |
+| `STRIPE_WEBHOOK_SECRET`           | Signature secret for `POST /api/webhooks/stripe`.                                    |
+| `STRIPE_PRICE_STARTER` / `_PRO`   | Price ids mapped to plans; `_STARTER` powers `GET /api/checkout`.                    |
+| `RESEND_API_KEY`                  | Transactional email (welcome key, magic links). Unset → emails are logged, not sent. |
+| `EMAIL_FROM`                      | Optional Resend from-address (default `onboarding@resend.dev`).                      |
+| `AUTH_SECRET`                     | **Required at runtime** for Auth.js sessions and magic-link tokens.                  |
+| `AUTH_URL`                        | Canonical auth origin for magic-link callbacks (e.g. `http://localhost:3100`).       |
 
 ## Scripts
 
@@ -60,6 +72,35 @@ npm run stripe:smoke # end-to-end billing webhook test (server + secret must mat
 ```
 
 Always run `npm run typecheck`, `npm run lint`, and `npm run build` before shipping.
+
+## Accounts & Sign-in
+
+Customers authenticate with an **email magic link** (Auth.js v5 + Resend,
+database sessions). There are no passwords and no OAuth providers.
+
+- The `/login` form submits the `requestMagicLink` server action (rate limited
+  per IP), which calls `signIn("resend")` and redirects to `?sent=1`.
+- The link lands on `/api/auth/callback/resend`, marks `users.email_verified`,
+  creates a `sessions` row, and sets the session cookie.
+- `/dashboard` and `/dashboard/reports/[id]` are protected in
+  `app/dashboard/layout.tsx` (no middleware — sessions live in Postgres). Signed-out
+  visitors are redirected to `/login`.
+- The dashboard is read-only: org, plan/quota, reports, tracked subreddits,
+  keyword sets, and API key metadata. Signing in never creates an org; a signed-in
+  user without one sees a checkout CTA. Orgs are provisioned by the Stripe webhook
+  and linked to the same user by email.
+- **Email reconciliation:** the adapter matches addresses case-insensitively and
+  stores new ones lowercased, so a customer provisioned by Stripe reuses that user
+  row on first sign-in.
+- **Adapter:** `lib/auth/adapter.ts` is hand-written over the Drizzle tables.
+  `@auth/drizzle-adapter@1.11` imports a runtime export (`PgDatabase`) that
+  drizzle-orm v1 RC renamed, so it cannot be bundled here.
+- **Without `RESEND_API_KEY`** the magic link is printed to the server log
+  (`[auth] RESEND_API_KEY not set — magic link logged`) instead of emailed, which
+  makes local sign-in testable offline.
+
+`AUTH_SECRET` is required at runtime (not at build time). `AUTH_URL` should match
+the origin the browser uses or the callback will be rejected.
 
 ## Backend API
 
@@ -135,10 +176,11 @@ flow offline by signing synthetic events.
 The data layer lives in `db/` and uses **Drizzle ORM v1 (RC)** with
 **node-postgres**.
 
-- `db/schema.ts` — eleven tables (`users`, `orgs`, `memberships`, `subreddits`,
+- `db/schema.ts` — fourteen tables (`users`, `accounts`, `sessions`,
+  `verification_tokens`, `orgs`, `memberships`, `subreddits`,
   `keyword_sets`, `raw_posts`, `pain_signals`, `reports`, `api_keys`,
   `stripe_events`, `waitlist`), enums, indexes, relations, and the
-  `tenant_isolation` RLS policies.
+  `tenant_isolation` RLS policies. The four auth tables are global (no RLS).
 - `db/index.ts` — pooled `pg` client wrapped by `drizzle()` (+ relations).
 - `db/tenant.ts` — `withTenant(orgId, fn)` runs a transaction with
   `app.current_org_id` set so Postgres RLS restricts every org-scoped query.
@@ -191,6 +233,7 @@ vercel --prod
 ## Project Structure
 
 ```
+auth.ts                  NextAuth config: adapter, Resend provider, session callback
 app/
   layout.tsx             fonts, metadata, MotionProvider, dark-only shell
   page.tsx               composes all sections + SoftwareApplication JSON-LD
@@ -199,8 +242,12 @@ app/
   icon.svg               favicon
   sitemap.ts             /sitemap.xml
   robots.ts              /robots.txt
+  login/page.tsx         magic-link sign-in
+  dashboard/             session-gated account area (layout + page + reports/[id])
+  api/auth/[...nextauth]/ Auth.js handlers
   api/v1/                JSON backend (route handlers), API-key authed
 components/
+  auth/login-form.tsx    sign-in form (server action + pending state)
   sections/              one file per page section (kebab-case)
     announcement-bar.tsx  navbar.tsx        hero.tsx
     social-proof.tsx      how-it-works.tsx  features.tsx
@@ -220,8 +267,12 @@ lib/
   utils.ts               cn re-export
   rate-limit.ts          in-memory fixed-window limiter
   actions/waitlist.ts    joinWaitlist() server action
+  actions/auth.ts        requestMagicLink() / signOutAction()
   api/                   v1 API helpers (http, auth, validate)
   auth/api-key.ts        API key generate/hash helpers
+  auth/adapter.ts        hand-written Auth.js adapter (Drizzle)
+  dashboard/data.ts      session + tenant data for the dashboard
+  email/                 welcome + magic-link emails (log when unconfigured)
   reports/               report generator (pure) + runReport service
 db/
   schema.ts              tables, enums, relations, RLS policies, inferred types
@@ -229,6 +280,7 @@ db/
   tenant.ts              withTenant() RLS-scoped transaction helper
   admin.ts               privileged (RLS-bypassing) drizzle instance
   queries.ts             data-access layer
+types/next-auth.d.ts     session.user.id augmentation
 scripts/
   export-waitlist.ts     waitlist -> CSV export
   db-seed.ts             seed the local harness (tenant + evidence + API key)

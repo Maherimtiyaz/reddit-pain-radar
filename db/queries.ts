@@ -25,6 +25,7 @@ import {
   reports,
   subreddits,
   users,
+  type Membership,
   type Org,
   type ReportJson,
 } from "./schema";
@@ -53,17 +54,20 @@ export async function createOrgWithOwner(input: {
   plan?: "trial" | "starter" | "pro";
 }): Promise<{ userId: string; orgId: string }> {
   return adminDb.transaction(async (tx) => {
+    // Match the magic-link adapter: normalize new addresses and compare
+    // case-insensitively so an existing user is reused, not duplicated.
+    const email = input.email.trim().toLowerCase();
     const existing = await tx
       .select({ id: users.id })
       .from(users)
-      .where(eq(users.email, input.email))
+      .where(sql`lower(${users.email}) = ${email}`)
       .limit(1);
 
     let userId = existing[0]?.id;
     if (!userId) {
       const inserted = await tx
         .insert(users)
-        .values({ email: input.email, name: input.name ?? null })
+        .values({ email, name: input.name ?? null })
         .returning({ id: users.id });
       userId = inserted[0].id;
     }
@@ -120,6 +124,25 @@ export async function findOrgByStripeCustomerId(
     .select()
     .from(orgs)
     .where(eq(orgs.stripeCustomerId, stripeCustomerId))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+/**
+ * Resolves the org a signed-in user belongs to (their first membership).
+ * Privileged: `memberships`/`orgs` are RLS-protected and a session only knows
+ * the user id, not the tenant. Returns `null` for users without an org (e.g.
+ * someone who signed in before subscribing).
+ */
+export async function findOrgForUser(
+  userId: string,
+): Promise<{ org: Org; role: Membership["role"] } | null> {
+  const rows = await adminDb
+    .select({ org: orgs, role: memberships.role })
+    .from(memberships)
+    .innerJoin(orgs, eq(memberships.orgId, orgs.id))
+    .where(eq(memberships.userId, userId))
+    .orderBy(asc(orgs.createdAt))
     .limit(1);
   return rows[0] ?? null;
 }

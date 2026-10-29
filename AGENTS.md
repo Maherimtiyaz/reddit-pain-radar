@@ -16,9 +16,11 @@ Single-page landing page for **Reddit Pain Radar** — a SaaS that scans Reddit 
 
 The page has one job: **convert visitors into early-access signups at $29/month**. Every section must earn its place. No filler.
 
+Behind it: a small authenticated account area (`/login` magic link → `/dashboard`) where customers see their workspace, plan/quota, reports, tracked subreddits, and API keys.
+
 ## Tech Stack (as built)
 
-- **Framework:** Next.js **16.4.0** (App Router, Turbopack) + TypeScript (strict). `cacheComponents` and `partialPrefetching` are enabled in `next.config.ts`.
+- **Framework:** Next.js **16.4.3** (App Router, Turbopack) + TypeScript (strict). `cacheComponents` and `partialPrefetching` are enabled in `next.config.ts`.
 - **React:** 19.3.0.
 - **Styling:** Tailwind CSS v4 (CSS-first `@theme` in `app/globals.css`).
 - **Animation:** `motion` (v14, imported from `motion/react`) — **not** `framer-motion`.
@@ -26,6 +28,7 @@ The page has one job: **convert visitors into early-access signups at $29/month*
 - **Icons:** Lucide React. Note: brand icons (`Twitter`, `Github`, `Linkedin`) were removed from lucide — inline the SVGs (see `components/sections/footer.tsx`).
 - **Fonts:** Geist Sans + Geist Mono via `next/font`.
 - **Database:** Drizzle ORM **v1 (RC)** + `node-postgres` (`pg`), migrations via `drizzle-kit`. Postgres RLS for tenant isolation (see Database section).
+- **Auth:** Auth.js v5 (`next-auth@beta`) with the email magic-link provider (`next-auth/providers/resend`). Database sessions. The adapter is **hand-written** in `lib/auth/adapter.ts` (`@auth/drizzle-adapter` cannot bundle against drizzle v1 RC — it imports the removed `PgDatabase` export).
 - **Ingestion workers:** two independent Python paths. `workers/` holds legacy script-style ingestion (`requests` + `psycopg[binary]`), run directly with `python`. `reddit-pain-radar-worker/` is a standalone `uv` project (httpx, SQLAlchemy 2.0 + Alembic, DeepSeek via the OpenAI SDK, APScheduler) with its own CLI, schema, and `AGENTS.md`. Neither is wired into any npm script or the Next app (see Ingestion Workers section).
 - **Deployment:** Vercel.
 
@@ -35,12 +38,14 @@ The page has one job: **convert visitors into early-access signups at $29/month*
 - shadcn components import `cn` from the `"cn"` package, **not** `@/lib/utils`. `lib/utils.ts` just re-exports: `export { cn } from "cn"`.
 - Read version-matched docs from `node_modules/next/dist/docs/` before using unfamiliar APIs.
 - Default shadcn button sizes are small (`default` = `h-8`). Landing CTAs must be touch-friendly: pass `className="h-12 ..."`.
+- With `cacheComponents`, a route that reads `cookies()`/`headers()` (or DB data behind them) **fails the build** unless it is wrapped in `<Suspense>` or opts out with `export const instant = false`. Session-gated routes (`/login`, `/dashboard`) use `instant = false` **and** call `await connection()` before the first dynamic read, so the dev prerender pass doesn't flag the session read / server-action forms. See `node_modules/next/dist/docs/01-app/02-guides/authentication-with-cache-components.md`.
+- `next dev` does **not** read `PORT` from `.env`. Start the local server with `$env:PORT=3100; npm run dev` (or set `PORT` in the shell) when you need the dev origin to match `AUTH_URL`.
 
 ## Build & Development Commands
 
 ```bash
 npm install         # install dependencies
-npm run dev         # dev server (localhost:3000)
+npm run dev         # dev server (localhost:3000; start with PORT=3100 for auth testing)
 npm run start        # serve the production build
 npm run typecheck   # tsc --noEmit
 npm run lint        # eslint
@@ -69,7 +74,15 @@ vercel --prod       # deploy (out of scope unless asked)
 
 **Always run `npm run typecheck` and `npm run lint` (then `npm run build`) before declaring a task complete.**
 
-To verify a single component in isolation, run `npm run dev` and check `localhost:3000`; there is no per-file test or typecheck shortcut.
+To verify a single component in isolation, run `npm run dev` and check `localhost:3000` (or `localhost:3100` when started with `PORT=3100`); there is no per-file test or typecheck shortcut.
+
+### Testing magic-link sign-in locally
+
+1. `AUTH_SECRET` must be set in `.env` (any random string; see `.env.example`).
+2. `npm run db:up && npm run db:reset` — seeds `founder@redditpainradar.test` / org `Acme Indie Studio`.
+3. `$env:PORT=3100; npm run dev` (keep `AUTH_URL=http://localhost:3100` in `.env`).
+4. Open `http://localhost:3100/login`, enter the seed email. With `RESEND_API_KEY` unset, the server log prints the magic link (`[auth] RESEND_API_KEY not set — magic link logged`); paste it into the browser.
+5. You land on `/dashboard` with the seeded org. Signing out deletes the session row.
 
 ### Python ingestion workers
 
@@ -85,6 +98,7 @@ python workers/pain_extractor.py data/raw/<file>.json --json-out out.json --db-u
 ## Project Structure
 
 ```
+auth.ts                  # NextAuth config: adapter, Resend provider, session callback
 /app
   layout.tsx             # fonts, metadata, MotionProvider, dark-only shell
   page.tsx               # composes all sections + SoftwareApplication JSON-LD
@@ -93,6 +107,14 @@ python workers/pain_extractor.py data/raw/<file>.json --json-out out.json --db-u
   icon.svg               # favicon
   sitemap.ts             # /sitemap.xml
   robots.ts              # /robots.txt
+  /login
+    page.tsx             # magic-link sign-in (request link + "check your email")
+  /dashboard             # session-gated account area (instant = false)
+    layout.tsx           # protected shell + sign out
+    page.tsx             # org, plan/quota, reports, subreddits, keys
+    reports/[id]/page.tsx# full markdown of one report
+  /api/auth/[...nextauth]
+    route.ts             # Auth.js handlers (magic link, callback, session, signout)
   /api/v1                # JSON backend (route handlers), API-key authed
     me/route.ts          # GET org behind the key
     reports/route.ts     # GET list · POST generate
@@ -129,24 +151,31 @@ python workers/pain_extractor.py data/raw/<file>.json --json-out out.json --db-u
   rate-limit.ts          # in-memory fixed-window limiter (best-effort)
   /actions
     waitlist.ts          # "use server" — joinWaitlist() email capture (+throttle, source)
+    auth.ts              # "use server" — requestMagicLink() / signOutAction()
   /api                   # helpers for the v1 route handlers
     http.ts              # json() / apiError() / unauthorized()
     auth.ts              # authenticate(req) -> { orgId, keyId } from a Bearer key
     validate.ts          # dependency-free body parsers (reports, subreddits, keys)
   /auth
     api-key.ts           # generateApiKey() / hashApiKey() / safeEqualHex()
+    adapter.ts           # hand-written Auth.js adapter over the Drizzle tables
+  /dashboard
+    data.ts              # requireDashboardUser() / getDashboardData() / getDashboardReport()
   /billing
     limits.ts            # plan quotas + trial expiry: effectivePlan()/reportQuota()/startOfUtcMonth()
   /email
     welcome.ts           # Resend welcome email (logged to console when RESEND_API_KEY unset)
+    magic-link.ts        # Resend sign-in email (logs the URL when RESEND_API_KEY unset)
   /reports
     generate.ts          # pure: pain signals -> ranked themes + markdown
     service.ts           # runReport(orgId, input): load signals, generate, persist
   /stripe
     client.ts            # lazy Stripe SDK instance + isStripeConfigured()
     webhook.ts           # checkout -> provision org/key/email; subscription events -> plan sync
+/types
+  next-auth.d.ts         # session.user.id augmentation
 /db
-  schema.ts              # 11 tables, enums, relations, RLS policies, inferred types
+  schema.ts              # 14 tables (incl. accounts/sessions/verification_tokens), enums, relations, RLS policies
   index.ts               # pooled pg client + drizzle() (relations wired)
   tenant.ts              # withTenant(orgId, fn) — RLS-scoped transaction
   admin.ts               # privileged client (DATABASE_ADMIN_URL), bypasses RLS
@@ -186,8 +215,9 @@ schema (Drizzle here, Alembic there).
 ## Database (Drizzle ORM v1 RC + node-postgres)
 
 - **Single schema file:** `db/schema.ts` (`drizzle.config.ts` points at it). All column names are written **explicitly in `snake_case`** with camelCase JS keys — drizzle-kit v1 has no top-level `casing` option, so do not rely on it.
-- **11 tables:** `users`, `orgs`, `memberships`, `subreddits`, `keyword_sets`, `raw_posts`, `pain_signals`, `reports`, `api_keys`, `stripe_events`, `waitlist`. Enums: `role` (`owner|admin|member`), `plan` (`trial|starter|pro`), `report_status` (`queued|running|complete|failed`).
+- **14 tables:** `users`, `accounts`, `sessions`, `verification_tokens`, `orgs`, `memberships`, `subreddits`, `keyword_sets`, `raw_posts`, `pain_signals`, `reports`, `api_keys`, `stripe_events`, `waitlist`. Enums: `role` (`owner|admin|member`), `plan` (`trial|starter|pro`), `report_status` (`queued|running|complete|failed`). The four auth tables are global (no RLS).
 - **PKs:** `uuid().defaultRandom()`. Scores are `real`. `reports.subreddit_ids` is `uuid[]`. `keyword_sets.keywords` is `jsonb string[]`.
+- **Auth columns:** `users.email_verified` is added for the adapter; `users.image` maps to the pre-existing `avatar_url` column (no rename migration). `accounts`, `sessions`, and `verification_tokens` follow Auth.js's model (`sessions.session_token` is the PK; `verification_tokens` is keyed by `(identifier, token)`). New signups store a lowercased email, and both the adapter and `createOrgWithOwner` match emails case-insensitively so Stripe-provisioned users are reused rather than duplicated.
 - **Dedupe:** `pain_signals` has a unique index on `(raw_post_id, theme, md5(verbatim_quote))` so re-running extraction never duplicates signals (the quote is hashed to stay within the btree index-tuple limit).
 - **Tenant isolation (defense in depth):** app-layer DAL **plus** Postgres RLS. `orgs`, `memberships`, `subreddits`, `keyword_sets`, `reports`, `api_keys` are declared with `pgTable.withRLS(...)` and carry a `tenant_isolation` policy (`USING`/`WITH CHECK` on `org_id`, or `id` for `orgs`, matching `current_setting('app.current_org_id')`). `raw_posts`/`pain_signals` are **global shared evidence — intentionally not org-scoped**.
 - **Querying:** use `db` (`db/index.ts`) for global tables; use `withTenant(orgId, fn)` (`db/tenant.ts`) for anything org-scoped so `app.current_org_id` is set transaction-locally (safe with the shared pool).
@@ -212,7 +242,7 @@ schema (Drizzle here, Alembic there).
 
 ## Backend API (v1)
 
-JSON route handlers under `app/api/v1/**`. They are part of the backend only — no additional **pages** are added (see Do NOT).
+JSON route handlers under `app/api/v1/**`. They are part of the backend only — no additional **marketing** pages are added (see Do NOT).
 
 - **Auth:** `Authorization: Bearer <key>`. `lib/api/auth.ts` hashes the presented key (SHA-256), resolves it to an org via the privileged client, re-checks in constant time, and returns `{ orgId, keyId }`. Unknown/missing keys get `401 { error: { message, code } }`. Keys are generated by `lib/auth/api-key.ts` (`rpr_<base64url>`); only the hash is stored, so a mint (`POST /api/v1/keys`) returns the plaintext exactly once.
 - **Self-serve checkout:** `GET /api/checkout` (public, no API key) is the target of every landing CTA. With `STRIPE_SECRET_KEY` + `STRIPE_PRICE_STARTER` it 302s into a subscription Checkout Session (`metadata.plan = "starter"` → the webhook provisions starter); otherwise — or on any Stripe error — it degrades to `NEXT_PUBLIC_STRIPE_PAYMENT_LINK`, then `#waitlist`, so partially-configured deploys never show a dead CTA. Per-IP rate limited (10/min, `lib/rate-limit.ts`). Success lands on `/?checkout=success`, where `components/sections/checkout-success.tsx` (client, reads the query string in an effect so the page stays static) shows a dismissible "your API key is on its way" banner. Copy lives in `lib/copy.ts#checkoutSuccess`.
@@ -228,6 +258,20 @@ JSON route handlers under `app/api/v1/**`. They are part of the backend only —
 - **Report generation:** `lib/reports/service.ts#runReport` resolves and **validates ownership of** subreddits (unknown ids → error, not silently dropped) and the optional keyword set → `fetchSignalsForReport` (subreddit + keyword filter) → `lib/reports/generate.ts` (pure: groups themes case-insensitively, averages `urgency`/`wtp`/`composite`, keeps the strongest quotes, renders markdown) → persists `status: complete` + `markdown_content` + `json_content`. On failure the row is marked `failed`. Synchronous is fine at landing scale; the seam to move behind a queue is `createReport({ status: "queued" })` + a worker finishing it.
 - **Validation:** `lib/api/validate.ts` — dependency-free parsers (no zod). IDs are UUID-checked before hitting Postgres; subreddit names are normalized (strip `r/`, 2–21 word chars). Responses are `{ data }` or `{ error: { message, code } }`.
 - Route handlers read the request, so they are dynamic by default (Next 16 GET handlers are no longer statically cached). `params` is a **Promise** — `const { id } = await ctx.params`.
+
+## Authentication & Dashboard
+
+Identity is Auth.js v5 with the **email magic-link** provider and **database sessions**. There is no password or OAuth provider.
+
+- **Config:** root `auth.ts` exports `{ handlers, auth, signIn, signOut }`. `app/api/auth/[...nextauth]/route.ts` re-exports the handlers. `auth()` is the server-side session read; it returns `null` when signed out.
+- **Adapter:** `lib/auth/adapter.ts` is hand-written against the Drizzle tables. `@auth/drizzle-adapter@1.11` cannot be used with drizzle-orm v1 RC (it imports the removed runtime `PgDatabase` export, renamed `PgAsyncDatabase`), so only the `Adapter` methods needed for email + database sessions are implemented. `getUserByEmail` is **case-insensitive** and new users store a lowercased email, so a user provisioned by the Stripe webhook is reused on first sign-in instead of duplicated.
+- **Tables:** `users` (extended with `email_verified`; `image` maps to the existing `avatar_url` column), `accounts`, `sessions`, `verification_tokens`. All four are global (no RLS). Tokens are single-use (`useVerificationToken` deletes and returns in one statement). Sessions cascade-delete with the user.
+- **Flow:** the form calls `requestMagicLink` → `signIn("resend", { redirect: false })` → `sendMagicLinkEmail` (`lib/email/magic-link.ts`; with `RESEND_API_KEY` unset it logs the URL instead of sending) → the action redirects to `/login?sent=1`. The callback consumes the token, marks `email_verified`, creates the session cookie, redirects to `callbackUrl`. Sign-out deletes the session row.
+- **Route protection:** no middleware (DB sessions can't run on the edge). `app/dashboard/layout.tsx` calls `requireDashboardUser()` and redirects to `/login`; `app/login/page.tsx` redirects signed-in users to `/dashboard`.
+- **Cache Components:** `/login` and `/dashboard/**` export `instant = false` and call `await connection()` before the first session read, because they have no static shell. `connection()` lives in `requireDashboardUser` (covers all dashboard routes) and at the top of `LoginPage`. Don't remove them without wrapping the reads in `<Suspense>`.
+- **Dashboard data:** `lib/dashboard/data.ts` (`requireDashboardUser`, `getDashboardData`, `getDashboardReport`) resolves the user's first org via `findOrgForUser` (admin client, memberships → orgs) and returns plan/quota/reports/subreddits/keyword sets/keys. Signed-in users with no org see a "No workspace yet" checkout CTA — sign-in itself never creates an org. Report content is only fetched when the report belongs to the user's org.
+- **Auth actions:** `lib/actions/auth.ts` — `requestMagicLink` (server action, per-IP rate limited 10/10min) and `signOutAction`.
+- **Env:** `AUTH_SECRET` is required at runtime (not build). `AUTH_URL` pins the callback origin (local dev `http://localhost:3100`). `RESEND_API_KEY`/`EMAIL_FROM` control delivery; without the key the magic-link and welcome emails are logged.
 
 ## Design System
 
@@ -287,7 +331,9 @@ All animation uses `motion` (`motion/react`). Presets live in `lib/motion.ts`; p
 - `DATABASE_ADMIN_URL` — optional privileged (table-owning) connection used by `db/admin.ts` for signup provisioning and API-key→org lookup. Falls back to `DATABASE_URL` when unset (fine locally; on a hardened deploy the app role should be non-owner so RLS applies to normal traffic).
 - `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` — required by the billing webhook (`app/api/webhooks/stripe`); the route answers `503` until both are set.
 - `STRIPE_PRICE_STARTER` / `STRIPE_PRICE_PRO` — optional price-id → plan mapping; active subscriptions on unknown prices default to `starter`.
-- `RESEND_API_KEY` / `EMAIL_FROM` — transactional email (welcome key on signup). Without `RESEND_API_KEY` the email is printed to the server log instead of sent.
+- `RESEND_API_KEY` / `EMAIL_FROM` — transactional email (welcome key on signup, magic links). Without `RESEND_API_KEY` both are printed to the server log instead of sent.
+- `AUTH_SECRET` — **required at runtime** by Auth.js (session cookies, token hashing). Generate with `node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"`. Not needed for `npm run build`.
+- `AUTH_URL` — canonical auth origin used to build magic-link callbacks (e.g. `http://localhost:3100` in dev). On Vercel the request host is trusted; set it explicitly for self-hosting.
 
 `lib/site.ts` exposes the two public vars. See `.env.example`.
 
@@ -302,7 +348,7 @@ The Python workers read additional server-only vars (never exposed to the client
 - Use light mode or a theme toggle.
 - Use `dark:` Tailwind variants.
 - Use generic placeholder images — use SVG/CSS mockups, gradients, or the hand-built effect components.
-- Add **pages** or marketing routes beyond the single landing page (no `/blog`, `/docs`, `/pricing`). Backend JSON route handlers under `app/api/**` are expected and OK.
+- Add **marketing pages** beyond the single landing page (no `/blog`, `/docs`, `/pricing`). App routes (`/login`, `/dashboard/**`) and backend JSON route handlers under `app/api/**` are expected and OK.
 - Pull in UI libraries beyond shadcn/ui + hand-built Aceternity-style patterns.
 - Add unnecessary dependencies.
 - Write CSS outside Tailwind classes (except `@theme` tokens/keyframes in `globals.css`).
@@ -313,7 +359,7 @@ The Python workers read additional server-only vars (never exposed to the client
 1. `npm run typecheck` — zero errors
 2. `npm run lint` — zero warnings
 3. `npm run build` — completes
-4. No console errors at `localhost:3000` (including with `prefers-reduced-motion: reduce`)
+4. No console errors at your dev origin (`localhost:3000`, or `localhost:3100` with `PORT=3100`) (including with `prefers-reduced-motion: reduce`)
 5. Animations play on scroll
 6. Responsive at 375 / 768 / 1440 widths
 7. No horizontal scroll on any viewport

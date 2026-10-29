@@ -58,10 +58,65 @@ export type ReportJson = Record<string, unknown>;
 export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
   email: text("email").notNull().unique(),
+  emailVerified: timestamp("email_verified", { withTimezone: true }),
   name: text("name"),
-  avatarUrl: text("avatar_url"),
+  // The Auth.js Drizzle adapter reads/writes the JS key `image`. Keep the
+  // existing physical column so this is a metadata change, not a data move.
+  image: text("avatar_url"),
   createdAt: now(),
 });
+
+/* ------------------------------------------------------------------ */
+/* Auth.js adapter tables (global, no RLS)                             */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Magic-link auth lives in these adapter-shaped tables. Like `users` they are
+ * global and written by the app connection (never tenant-scoped). The JS keys
+ * match Auth.js's account/session models (see `lib/auth/adapter.ts`, which maps
+ * them explicitly to these snake_case columns).
+ */
+export const accounts = pgTable(
+  "accounts",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    type: text("type").notNull(),
+    provider: text("provider").notNull(),
+    providerAccountId: text("provider_account_id").notNull(),
+    refresh_token: text("refresh_token"),
+    access_token: text("access_token"),
+    expires_at: integer("expires_at"),
+    token_type: text("token_type"),
+    scope: text("scope"),
+    id_token: text("id_token"),
+    session_state: text("session_state"),
+  },
+  (t) => [primaryKey({ columns: [t.provider, t.providerAccountId] })],
+);
+
+export const sessions = pgTable(
+  "sessions",
+  {
+    sessionToken: text("session_token").primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    expires: timestamp("expires", { withTimezone: true }).notNull(),
+  },
+  (t) => [index("sessions_user_id_idx").on(t.userId)],
+);
+
+export const verificationTokens = pgTable(
+  "verification_tokens",
+  {
+    identifier: text("identifier").notNull(),
+    token: text("token").notNull(),
+    expires: timestamp("expires", { withTimezone: true }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.identifier, t.token] })],
+);
 
 export const orgs = pgTable.withRLS(
   "orgs",
