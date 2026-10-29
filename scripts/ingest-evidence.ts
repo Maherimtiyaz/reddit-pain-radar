@@ -27,6 +27,9 @@ async function main(): Promise<void> {
 }
 
 main().catch((error: unknown) => {
-  console.error("[ingest] failed:", error instanceof Error ? error.message : error);
+  console.error(
+    "[ingest] failed:",
+    error instanceof Error ? error.message : error,
+  );
   process.exit(1);
 });

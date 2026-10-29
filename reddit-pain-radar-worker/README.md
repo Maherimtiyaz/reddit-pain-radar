@@ -10,19 +10,19 @@ CLI, and an APScheduler loop.
 
 ## Stack
 
-| Concern            | Choice                                              |
-| ------------------ | --------------------------------------------------- |
-| Runtime            | Python 3.11+                                        |
-| Package manager    | [uv](https://docs.astral.sh/uv/)                    |
-| HTTP client        | httpx (async)                                       |
-| Validation         | pydantic v2 + pydantic-settings (`.env`)            |
-| Database           | SQLAlchemy 2.0 + Alembic, psycopg (Supabase/Neon)   |
-| LLM                | OpenAI SDK pointed at DeepSeek (`base_url`)         |
-| Rate limiting      | aiolimiter (60 requests/minute to Reddit)           |
-| Scheduling         | APScheduler (or system cron later)                  |
-| Email              | Resend                                              |
-| Logging            | structlog (JSON)                                    |
-| Testing            | pytest + pytest-asyncio + respx (httpx mocking)     |
+| Concern         | Choice                                            |
+| --------------- | ------------------------------------------------- |
+| Runtime         | Python 3.11+                                      |
+| Package manager | [uv](https://docs.astral.sh/uv/)                  |
+| HTTP client     | httpx (async)                                     |
+| Validation      | pydantic v2 + pydantic-settings (`.env`)          |
+| Database        | SQLAlchemy 2.0 + Alembic, psycopg (Supabase/Neon) |
+| LLM             | OpenAI SDK pointed at DeepSeek (`base_url`)       |
+| Rate limiting   | aiolimiter (60 requests/minute to Reddit)         |
+| Scheduling      | APScheduler (or system cron later)                |
+| Email           | Resend                                            |
+| Logging         | structlog (JSON)                                  |
+| Testing         | pytest + pytest-asyncio + respx (httpx mocking)   |
 
 > The spec mentions `responses`; that library only mocks `requests`/urllib3,
 > not httpx — so the httpx-level tests use **respx** instead (both are pinned

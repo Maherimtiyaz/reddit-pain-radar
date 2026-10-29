@@ -74,6 +74,9 @@ async function main(): Promise<void> {
 }
 
 main().catch((error: unknown) => {
-  console.error("[sync] failed:", error instanceof Error ? error.message : error);
+  console.error(
+    "[sync] failed:",
+    error instanceof Error ? error.message : error,
+  );
   process.exit(1);
 });

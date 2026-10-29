@@ -67,7 +67,7 @@ the gate. Keep the test suite green; new behavior needs tests in `tests/`.
 - Clustering: exact `llm_theme` grouping; >20 themes → second LLM pass merging
   into ≤10 themes as a JSON mapping.
 - Report lifecycle: `pending → generating → complete|failed`, with the
-  `reports` row committed *before* generation so failures can be recorded.
+  `reports` row committed _before_ generation so failures can be recorded.
 - **Evidence export contract:** `radar export` writes `rpr-evidence/v1`
   JSONL (one post per line; `signals` contains only those with an
   `llm_theme`) for the repo root's `npm run db:ingest`. The file format is a
