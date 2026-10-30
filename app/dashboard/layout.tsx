@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { ArrowUpRight, LogOut } from "lucide-react";
+import { LogoMark } from "@/components/brand/logo";
 
 import { Button } from "@/components/ui/button";
 import { signOutAction } from "@/lib/actions/auth";
@@ -40,10 +41,7 @@ export default async function DashboardLayout({
             href="/dashboard"
             className="font-heading text-ink flex items-center gap-2 font-semibold tracking-tight"
           >
-            <span
-              className="bg-brand size-2.5 rounded-full"
-              aria-hidden="true"
-            />
+            <LogoMark className="text-brand size-6" />
             {site.name}
             <span className="text-ink-faint hidden text-xs font-normal tracking-normal sm:inline">
               / dashboard

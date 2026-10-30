@@ -6,6 +6,7 @@ import { ArrowLeft, MailCheck } from "lucide-react";
 
 import { auth } from "@/auth";
 import { LoginForm } from "@/components/auth/login-form";
+import { LogoMark } from "@/components/brand/logo";
 import { site } from "@/lib/site";
 
 export const metadata: Metadata = {
@@ -61,6 +62,13 @@ export default async function LoginPage({
           <ArrowLeft className="size-4" aria-hidden="true" />
           Back to {site.name}
         </Link>
+
+        <div className="mb-6 flex items-center gap-2.5">
+          <LogoMark className="text-brand size-8" />
+          <span className="font-heading text-ink text-lg font-semibold tracking-tight">
+            {site.name}
+          </span>
+        </div>
 
         <div className="border-line bg-surface rounded-2xl border p-8">
           {sent ? (

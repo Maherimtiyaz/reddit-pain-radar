@@ -6,6 +6,15 @@ export const alt = `${site.name} — ${site.shortDescription}`;
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
+/**
+ * Satori (the renderer behind `ImageResponse`) handles a data-URI background
+ * more reliably than inline SVG, and a plain div keeps the lint rule against
+ * raw `<img>` quiet.
+ */
+const MARK = `data:image/svg+xml;base64,${Buffer.from(
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="#fff" stroke-width="2.2" stroke-dasharray="42.41 14.14" stroke-linecap="round" transform="rotate(-45 12 12)"/><path d="M12 12L16.4 7.6" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="12" r="2.2" fill="#fff"/></svg>`,
+).toString("base64")}`;
+
 export default function OpengraphImage() {
   return new ImageResponse(
     <div
@@ -31,10 +40,17 @@ export default function OpengraphImage() {
             alignItems: "center",
             justifyContent: "center",
             background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
-            fontSize: 30,
           }}
         >
-          📡
+          <div
+            style={{
+              width: 34,
+              height: 34,
+              backgroundImage: `url(${MARK})`,
+              backgroundSize: "34px 34px",
+              backgroundRepeat: "no-repeat",
+            }}
+          />
         </div>
         <div style={{ fontSize: 34, fontWeight: 600, letterSpacing: -0.5 }}>
           {site.name}

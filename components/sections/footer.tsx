@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { Container } from "@/components/ui/section";
+import { LogoMark } from "@/components/brand/logo";
 import { footer } from "@/lib/copy";
 import { site } from "@/lib/site";
 
@@ -47,37 +48,7 @@ export function Footer() {
         <div className="grid gap-10 md:grid-cols-2 lg:grid-cols-6">
           <div className="lg:col-span-2">
             <div className="font-heading text-ink flex items-center gap-2 font-semibold tracking-tight">
-              <svg
-                viewBox="0 0 32 32"
-                fill="none"
-                className="text-brand size-7"
-                aria-hidden="true"
-              >
-                <circle cx="16" cy="16" r="14" className="fill-surface-2" />
-                <circle
-                  cx="16"
-                  cy="16"
-                  r="9"
-                  stroke="currentColor"
-                  strokeOpacity="0.4"
-                  strokeWidth="1.5"
-                />
-                <circle
-                  cx="16"
-                  cy="16"
-                  r="4.5"
-                  stroke="currentColor"
-                  strokeOpacity="0.7"
-                  strokeWidth="1.5"
-                />
-                <circle cx="16" cy="16" r="1.6" fill="currentColor" />
-                <path
-                  d="M16 16 L26 7"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                />
-              </svg>
+              <LogoMark className="text-brand" />
               {site.name}
             </div>
             <p className="text-ink-muted mt-4 max-w-xs text-sm leading-relaxed">
