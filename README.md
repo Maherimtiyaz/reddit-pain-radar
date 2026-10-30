@@ -224,11 +224,97 @@ as the non-owner role. `db:seed` writes its API key to `.seed/api-key`
 
 ## Deploy
 
-Deploy on Vercel, then set the environment variables above in the project dashboard.
+The app deploys to Vercel as-is (Node runtime, no custom build step). The work
+is in the services around it — a Postgres with two roles, Stripe, Resend, and a
+cron host for ingestion.
+
+### 1. Database (RLS needs two roles)
+
+Hosted Postgres (Neon, Supabase, RDS) must let you create a **non-owner** app
+role: RLS policies are bypassed by table owners and superusers, so pointing the
+runtime at the migration role silently disables tenant isolation.
+
+```sql
+-- run as the database owner
+create role rpr_app login password '<strong-password>';
+grant usage on schema public to rpr_app;
+```
+
+Then migrate once per release from your machine (creates tables, policies and
+the `drizzle` schema), and grant the app role access:
 
 ```bash
-vercel --prod
+DATABASE_ADMIN_URL="postgres://owner:<pw>@<host>/<db>?sslmode=require" npm run db:migrate
+psql "postgres://owner:<pw>@<host>/<db>" -c \
+  "grant select, insert, update, delete on all tables in schema public to rpr_app;"
 ```
+
+- `DATABASE_ADMIN_URL` — owner connection. Used by migrations and the system
+  paths that must write before a tenant exists (Stripe provisioning) or resolve
+  an API key to an org.
+- `DATABASE_URL` — `rpr_app` connection. Used by normal request handling so the
+  policies actually apply. On Neon use the `-pooler` host; the app keeps a
+  small per-instance pool (`PG_POOL_MAX`, default 3).
+
+### 2. Environment variables
+
+| Variable                          | Required    | Notes                                                                                  |
+| --------------------------------- | ----------- | -------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                    | yes         | Non-owner role, `?sslmode=require`                                                     |
+| `DATABASE_ADMIN_URL`              | yes in prod | Owner role; used for provisioning + key lookup                                         |
+| `AUTH_SECRET`                     | yes         | `node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"`       |
+| `AUTH_URL`                        | recommended | `https://redditpainradar.com` (magic-link callbacks)                                   |
+| `NEXT_PUBLIC_SITE_URL`            | yes         | Canonical origin for metadata, sitemap, OG                                             |
+| `STRIPE_SECRET_KEY`               | yes         | Live or test secret key                                                                |
+| `STRIPE_WEBHOOK_SECRET`           | yes         | From the webhook endpoint you create below                                             |
+| `STRIPE_PRICE_STARTER`            | yes         | Price id for the $29/mo plan                                                           |
+| `STRIPE_PRICE_PRO`                | optional    | Maps a second price to `pro`                                                           |
+| `RESEND_API_KEY`                  | yes         | Without it, emails are only logged                                                     |
+| `EMAIL_FROM`                      | yes         | Must be a verified Resend domain, e.g. `Reddit Pain Radar <hello@redditpainradar.com>` |
+| `PG_POOL_MAX`                     | optional    | Connections per function instance (default 3)                                          |
+| `NEXT_PUBLIC_STRIPE_PAYMENT_LINK` | optional    | Fallback CTA when Stripe Checkout is not configured                                    |
+
+Set them for Production, Preview and Development in the Vercel project; a
+missing `AUTH_SECRET` breaks sign-in, a missing `STRIPE_SECRET_KEY` silently
+downgrades every CTA to the waitlist.
+
+### 3. Stripe
+
+1. Create the product and a **$29/month recurring** price → `STRIPE_PRICE_STARTER`.
+2. Add a webhook endpoint `https://<domain>/api/webhooks/stripe` subscribed to
+   `checkout.session.completed`, `customer.subscription.updated`,
+   `customer.subscription.deleted`, `invoice.payment_failed`.
+3. Copy the signing secret into `STRIPE_WEBHOOK_SECRET`.
+4. Checkout metadata (`plan=starter`) is what provisions the org, owner, first
+   API key and welcome email — no manual step after a purchase.
+
+### 4. Email
+
+Verify the sending domain in Resend, then set `RESEND_API_KEY` and
+`EMAIL_FROM`. Both the welcome email and magic links log to the server console
+when the key is absent, which is enough for a preview deployment but not for
+customers.
+
+### 5. Ingestion cron
+
+The Python worker (`reddit-pain-radar-worker/`) cannot run on Vercel: it needs
+`uv`, long-lived processes and its own database. Run `npm run evidence:sync`
+from a cron host (GitHub Actions, a small VM, or the worker's own scheduler) on
+the same `DATABASE_URL`, or keep the app fed by whatever writes
+`raw_posts` / `pain_signals` directly.
+
+### 6. After the first deploy
+
+```bash
+curl -sI https://<domain> | grep -Ei "x-frame|referrer|strict-transport"
+curl -s -o /dev/null -w '%{http_code}\n' https://<domain>/api/v1/me          # 401
+curl -s -o /dev/null -w '%{http_code} %{redirect_url}\n' https://<domain>/api/checkout
+curl -s -o /dev/null -w '%{http_code}\n' -X POST https://<domain>/api/webhooks/stripe  # 400
+```
+
+Then walk the real flow once: buy with a test card, confirm the webhook
+provisions an org, sign in at `/login` with the purchase email, and check the
+dashboard shows the plan and API key.
 
 ## Project Structure
 
