@@ -1,6 +1,7 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 
+import { poolOptions } from "./pool-options";
 import { relations } from "./schema";
 
 /**
@@ -22,10 +23,9 @@ const globalForAdmin = globalThis as unknown as {
 
 export const adminPool =
   globalForAdmin.__painRadarAdminPool ??
-  new Pool({
-    connectionString:
-      process.env.DATABASE_ADMIN_URL ?? process.env.DATABASE_URL,
-  });
+  new Pool(
+    poolOptions(process.env.DATABASE_ADMIN_URL ?? process.env.DATABASE_URL),
+  );
 
 if (process.env.NODE_ENV !== "production") {
   globalForAdmin.__painRadarAdminPool = adminPool;
