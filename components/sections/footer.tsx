@@ -48,7 +48,7 @@ export function Footer() {
         <div className="grid gap-10 md:grid-cols-2 lg:grid-cols-6">
           <div className="lg:col-span-2">
             <div className="font-heading text-ink flex items-center gap-2 font-semibold tracking-tight">
-              <LogoMark className="text-brand" />
+              <LogoMark className="text-brand size-8" />
               {site.name}
             </div>
             <p className="text-ink-muted mt-4 max-w-xs text-sm leading-relaxed">

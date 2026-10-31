@@ -12,7 +12,7 @@ export const contentType = "image/png";
  * raw `<img>` quiet.
  */
 const MARK = `data:image/svg+xml;base64,${Buffer.from(
-  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="#fff" stroke-width="2.2" stroke-dasharray="42.41 14.14" stroke-linecap="round" transform="rotate(-45 12 12)"/><path d="M12 12L16.4 7.6" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="12" r="2.2" fill="#fff"/></svg>`,
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"><path d="M3 15.2h5.2L11 6.2l3.4 12.4 2.2-6.4H21" stroke="#fff" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/><circle cx="11" cy="6.2" r="2.3" fill="#fff"/></svg>`,
 ).toString("base64")}`;
 
 export default function OpengraphImage() {

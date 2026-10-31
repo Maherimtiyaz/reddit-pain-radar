@@ -35,7 +35,7 @@ export function Navbar() {
           href="#top"
           className="font-heading text-ink flex items-center gap-2 font-semibold tracking-tight"
         >
-          <LogoMark className="text-brand" />
+          <LogoMark className="text-brand size-8" />
           {site.name}
         </a>
 

@@ -41,7 +41,7 @@ export default async function DashboardLayout({
             href="/dashboard"
             className="font-heading text-ink flex items-center gap-2 font-semibold tracking-tight"
           >
-            <LogoMark className="text-brand size-6" />
+            <LogoMark className="text-brand size-7" />
             {site.name}
             <span className="text-ink-faint hidden text-xs font-normal tracking-normal sm:inline">
               / dashboard
