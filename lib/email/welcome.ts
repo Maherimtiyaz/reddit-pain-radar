@@ -24,10 +24,19 @@ export async function sendWelcomeEmail(
 ): Promise<{ delivered: boolean }> {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
-    console.warn(
-      "[email] RESEND_API_KEY not set — welcome email logged, not sent",
-      { to: input.to, orgName: input.orgName, apiKey: input.apiKey },
-    );
+    // Never log the key itself: on a serverless host these logs are readable by
+    // anyone with project access and may be retained or exported.
+    if (process.env.NODE_ENV === "production") {
+      console.error(
+        "[email] RESEND_API_KEY is not set: the customer was provisioned but their API key was NOT delivered",
+        { to: input.to, orgName: input.orgName },
+      );
+    } else {
+      console.warn(
+        "[email] RESEND_API_KEY not set — welcome email skipped (key not logged)",
+        { to: input.to, orgName: input.orgName },
+      );
+    }
     return { delivered: false };
   }
 

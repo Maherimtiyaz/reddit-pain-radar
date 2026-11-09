@@ -2,10 +2,23 @@
 
 export type Parsed<T> = { ok: true; value: T } | { ok: false; error: string };
 
+/** Largest accepted JSON body; the v1 payloads are all tiny documents. */
+const BODY_LIMIT_BYTES = 64 * 1024;
+
+/** A report can target at most this many subreddits in one request. */
+const SUBREDDIT_IDS_MAX = 100;
+
 /** Reads a JSON request body, tolerating malformed/empty bodies. */
 export async function parseJsonBody(
   request: Request,
 ): Promise<Parsed<unknown>> {
+  // Refusing an oversized declared length keeps a single request from being
+  // used as a memory amplifier.
+  const declared = Number(request.headers.get("content-length") ?? "0");
+  if (Number.isFinite(declared) && declared > BODY_LIMIT_BYTES) {
+    return { ok: false, error: "Request body is too large." };
+  }
+
   try {
     return { ok: true, value: await request.json() };
   } catch {
@@ -57,6 +70,12 @@ export function parseReportInput(body: unknown): Parsed<ReportInput> {
     }
     if (ids.some((id) => !isUuid(id))) {
       return { ok: false, error: "`subredditIds` contains a malformed id." };
+    }
+    if (ids.length > SUBREDDIT_IDS_MAX) {
+      return {
+        ok: false,
+        error: `\`subredditIds\` accepts at most ${SUBREDDIT_IDS_MAX} ids.`,
+      };
     }
     subredditIds = ids;
   }

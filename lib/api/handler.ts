@@ -1,5 +1,31 @@
 import { authenticate, type ApiPrincipal } from "./auth";
-import { apiError, serviceUnavailable, unauthorized } from "./http";
+import {
+  apiError,
+  serviceUnavailable,
+  tooManyRequests,
+  unauthorized,
+} from "./http";
+import { rateLimit } from "@/lib/rate-limit";
+
+/** `Bearer` + one non-space token. Anything else can never authenticate. */
+const BEARER_RE = /^Bearer\s+\S+$/i;
+
+/**
+ * Per-IP ceiling for the whole v1 surface. A real customer generating reports
+ * is orders of magnitude below this; the point is that an unauthenticated
+ * caller cannot turn key lookups into a free database amplifier.
+ */
+const IP_LIMIT = 300;
+const IP_WINDOW_MS = 60_000;
+
+/** Best-effort client identity (proxies set the first XFF hop). */
+function clientIp(request: Request): string {
+  return (
+    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    request.headers.get("x-real-ip") ||
+    "unknown"
+  );
+}
 
 /** The global `db` client needs `DATABASE_URL`; the API is unusable without it. */
 export function databaseConfigured(): boolean {
@@ -73,6 +99,14 @@ export function withAuth<Ctx = unknown>(handler: Handler<Ctx>) {
     if (!databaseConfigured()) {
       return serviceUnavailable("API unavailable: database is not configured.");
     }
+
+    // Reject credentials that can never match before they cost a database
+    // round-trip, then cap the per-IP rate. Both run ahead of `authenticate`.
+    const header = request.headers.get("authorization");
+    if (!header || !BEARER_RE.test(header.trim())) return unauthorized();
+
+    const limit = rateLimit(`api:${clientIp(request)}`, IP_LIMIT, IP_WINDOW_MS);
+    if (!limit.ok) return tooManyRequests(limit.retryAfterSeconds);
 
     try {
       const principal = await authenticate(request);

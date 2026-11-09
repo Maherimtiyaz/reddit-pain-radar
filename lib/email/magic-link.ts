@@ -29,8 +29,17 @@ export async function sendMagicLinkEmail(
 ): Promise<MagicLinkDelivery> {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
+    if (process.env.NODE_ENV === "production") {
+      // Never log a magic-link URL in production: it is a bearer credential
+      // for the account until it is consumed or expires.
+      console.error(
+        "[auth] RESEND_API_KEY is not set: sign-in links cannot be delivered",
+        { to: input.to },
+      );
+      return { delivered: false };
+    }
     console.warn(
-      "[auth] RESEND_API_KEY not set — magic link logged, not sent",
+      "[auth] RESEND_API_KEY not set — magic link logged for local development",
       { to: input.to, url: input.url },
     );
     return { delivered: false, url: input.url };

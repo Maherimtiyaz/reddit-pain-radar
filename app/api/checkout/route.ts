@@ -37,7 +37,14 @@ function redirect(
 }
 
 export async function GET(request: Request): Promise<Response> {
-  const origin = new URL("/", request.url).origin;
+  // `request.url` inherits the Host header. Vercel only routes known hosts, but
+  // for a URL the customer is redirected to after paying, an explicitly
+  // configured origin is the safer source. Local dev leaves it unset.
+  const configuredOrigin = process.env.NEXT_PUBLIC_SITE_URL?.trim().replace(
+    /\/$/,
+    "",
+  );
+  const origin = configuredOrigin || new URL("/", request.url).origin;
   const fallback = site.stripePaymentLink || `${origin}/#waitlist`;
 
   const ip =
