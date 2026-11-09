@@ -1,0 +1,100 @@
+name: Evidence sync
+
+# Daily ingestion: Reddit -> worker DB -> JSONL -> app DB.
+#
+# The worker cannot run on Vercel (it needs uv, long-running processes and its
+# own database), so this job runs `npm run evidence:sync` on a schedule. The
+# worker's DATABASE_URL is written to `reddit-pain-radar-worker/.env` because
+# `scripts/sync-evidence.ts` deliberately strips the app's DATABASE_URL from the
+# subprocess environment.
+
+on:
+  schedule:
+    # 06:00 UTC daily (matches the worker's default report cadence).
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+    inputs:
+      skip_fetch:
+        description: Only export/ingest evidence already staged in the worker DB
+        type: boolean
+        default: false
+
+concurrency:
+  group: evidence-sync
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  NEXT_TELEMETRY_DISABLED: "1"
+  # App database (Drizzle schema) used by the ingest step.
+  DATABASE_URL: ${{ secrets.APP_DATABASE_URL }}
+  EVIDENCE_SKIP_FETCH: ${{ inputs.skip_fetch && '1' || '' }}
+
+jobs:
+  sync:
+    name: Fetch, export, ingest
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Check required secrets
+        env:
+          WORKER_DATABASE_URL: ${{ secrets.WORKER_DATABASE_URL }}
+          APP_DATABASE_URL: ${{ secrets.APP_DATABASE_URL }}
+          REDDIT_CLIENT_ID: ${{ secrets.REDDIT_CLIENT_ID }}
+          REDDIT_CLIENT_SECRET: ${{ secrets.REDDIT_CLIENT_SECRET }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        run: |
+          missing=""
+          for name in WORKER_DATABASE_URL APP_DATABASE_URL REDDIT_CLIENT_ID REDDIT_CLIENT_SECRET DEEPSEEK_API_KEY; do
+            if [ -z "${!name}" ]; then missing="$missing $name"; fi
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::Missing repository secrets:$missing"
+            exit 1
+          fi
+
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - uses: astral-sh/setup-uv@v10
+        with:
+          python-version: "3.12"
+          enable-cache: true
+          cache-dependency-glob: reddit-pain-radar-worker/uv.lock
+
+      - name: Install worker dependencies
+        working-directory: reddit-pain-radar-worker
+        run: uv sync --frozen
+
+      - name: Configure worker database
+        working-directory: reddit-pain-radar-worker
+        env:
+          WORKER_DATABASE_URL: ${{ secrets.WORKER_DATABASE_URL }}
+        run: printf 'DATABASE_URL=%s\n' "$WORKER_DATABASE_URL" > .env
+
+      - name: Migrate worker database
+        working-directory: reddit-pain-radar-worker
+        run: uv run alembic upgrade head
+
+      - name: Seed tracked subreddits
+        working-directory: reddit-pain-radar-worker
+        run: uv run python scripts/seed_subreddits.py
+
+      - name: Fetch, export, ingest
+        env:
+          REDDIT_CLIENT_ID: ${{ secrets.REDDIT_CLIENT_ID }}
+          REDDIT_CLIENT_SECRET: ${{ secrets.REDDIT_CLIENT_SECRET }}
+          REDDIT_USER_AGENT: ${{ secrets.REDDIT_USER_AGENT || 'RedditPainRadar/1.0 by github-actions' }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          DEEPSEEK_BASE_URL: ${{ vars.DEEPSEEK_BASE_URL || 'https://api.deepseek.com/v1' }}
+          DEEPSEEK_MODEL: ${{ vars.DEEPSEEK_MODEL || 'deepseek-chat' }}
+        run: npm run evidence:sync

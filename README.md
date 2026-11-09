@@ -303,6 +303,29 @@ from a cron host (GitHub Actions, a small VM, or the worker's own scheduler) on
 the same `DATABASE_URL`, or keep the app fed by whatever writes
 `raw_posts` / `pain_signals` directly.
 
+`.github/workflows/evidence-sync.yml` runs that command daily at 06:00 UTC and
+on demand (`workflow_dispatch`, with a "skip fetch" input). It migrates and seeds
+the worker database first, then fetches, exports and ingests. Add these
+repository secrets under **Settings → Secrets and variables → Actions**:
+
+| Secret                                      | Value                                                                                |
+| ------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `APP_DATABASE_URL`                          | App `DATABASE_URL` (non-owner `rpr_app`, pooler host)                                |
+| `WORKER_DATABASE_URL`                       | Worker DB URL **with the SQLAlchemy driver**: `postgresql+psycopg://user:pw@host/db` |
+| `REDDIT_CLIENT_ID` / `REDDIT_CLIENT_SECRET` | Reddit app-only OAuth credentials                                                    |
+| `REDDIT_USER_AGENT`                         | Optional; defaults to `RedditPainRadar/1.0 by github-actions`                        |
+| `DEEPSEEK_API_KEY`                          | DeepSeek API key                                                                     |
+
+Optional repository **variables** `DEEPSEEK_BASE_URL` and `DEEPSEEK_MODEL`
+override the defaults. The worker database must stay separate from the app
+database (their table names collide by design), and `WORKER_DATABASE_URL` is
+written to `reddit-pain-radar-worker/.env` inside the job because
+`scripts/sync-evidence.ts` strips the app's `DATABASE_URL` from the subprocess.
+
+`.github/workflows/ci.yml` runs typecheck, lint, format check and build on every
+push to `main` and every pull request. It uses placeholder build env vars and
+needs no secrets.
+
 ### 6. After the first deploy
 
 ```bash
@@ -319,6 +342,7 @@ dashboard shows the plan and API key.
 ## Project Structure
 
 ```
+.github/workflows/       CI (typecheck/lint/format/build) + daily evidence sync
 auth.ts                  NextAuth config: adapter, Resend provider, session callback
 app/
   layout.tsx             fonts, metadata, MotionProvider, dark-only shell
