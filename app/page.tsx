@@ -9,8 +9,7 @@ import { Hero } from "@/components/sections/hero";
 import { HowItWorks } from "@/components/sections/how-it-works";
 import { Navbar } from "@/components/sections/navbar";
 import { Pricing } from "@/components/sections/pricing";
-import { SocialProof } from "@/components/sections/social-proof";
-import { Testimonials } from "@/components/sections/testimonials";
+import { Sources } from "@/components/sections/sources";
 import { site } from "@/lib/site";
 
 const jsonLd = {
@@ -23,7 +22,8 @@ const jsonLd = {
   url: site.url,
   offers: {
     "@type": "Offer",
-    price: "29",
+    name: "PainProof Weekly",
+    price: "0",
     priceCurrency: "USD",
   },
 };
@@ -40,11 +40,10 @@ export default function Home() {
       <Navbar />
       <main className="flex-1">
         <Hero />
-        <SocialProof />
+        <Sources />
         <HowItWorks />
         <Features />
         <DemoReport />
-        <Testimonials />
         <Pricing />
         <Faq />
         <FinalCta />

@@ -41,13 +41,12 @@ export async function sendWelcomeEmail(
   }
 
   resend ??= new Resend(apiKey);
-  const from =
-    process.env.EMAIL_FROM ?? "Reddit Pain Radar <onboarding@resend.dev>";
+  const from = process.env.EMAIL_FROM ?? "PainProof <onboarding@resend.dev>";
 
   const { data, error } = await resend.emails.send({
     from,
     to: input.to,
-    subject: "Your Reddit Pain Radar API key",
+    subject: "Your PainProof API key",
     text: welcomeText(input),
     html: welcomeHtml(input),
   });
@@ -96,7 +95,7 @@ function quickstartLines(input: WelcomeEmailInput): string[] {
 
 function welcomeText(input: WelcomeEmailInput): string {
   return [
-    `Welcome to Reddit Pain Radar, ${input.orgName}!`,
+    `Welcome to PainProof, ${input.orgName}!`,
     ``,
     `Your API key (treat it like a password — it is shown only this once):`,
     ``,
@@ -105,7 +104,7 @@ function welcomeText(input: WelcomeEmailInput): string {
     ...quickstartLines(input),
     ``,
     `Reports rank pain themes by urgency, willingness to pay, and frequency,`,
-    `with verbatim Reddit evidence and source links for every theme.`,
+    `with verbatim evidence and source links for every theme.`,
     ``,
     `Questions? Just reply to this email or write to ${site.email}.`,
   ].join("\n");
@@ -117,13 +116,13 @@ function welcomeHtml(input: WelcomeEmailInput): string {
 <html>
   <body style="margin:0;padding:32px;background:#0a0a0a;color:#fafafa;font-family:Geist,-apple-system,Segoe UI,Roboto,sans-serif;line-height:1.6">
     <div style="max-width:560px;margin:0 auto">
-      <p style="font-size:13px;letter-spacing:0.08em;text-transform:uppercase;color:#818cf8;font-weight:600">Reddit Pain Radar</p>
+      <p style="font-size:13px;letter-spacing:0.08em;text-transform:uppercase;color:#818cf8;font-weight:600">PainProof</p>
       <h1 style="font-size:22px;margin:8px 0 16px">Welcome, ${escapeHtml(input.orgName)} 🎉</h1>
       <p style="color:#a1a1aa;margin:0 0 8px">Your account is live. Here is your API key — treat it like a password, it is shown only this once:</p>
       <pre style="background:#161616;border:1px solid #1f1f1f;border-radius:8px;padding:14px;color:#10b981;font-size:13px;overflow-x:auto">${escapeHtml(input.apiKey)}</pre>
       <p style="color:#a1a1aa;margin:24px 0 8px"><strong style="color:#fafafa">Quick start</strong></p>
       <pre style="background:#161616;border:1px solid #1f1f1f;border-radius:8px;padding:14px;color:#d4d4d8;font-size:12px;overflow-x:auto">${escapeHtml(curl)}</pre>
-      <p style="color:#a1a1aa;margin:24px 0 0">Reports rank pain themes by <strong style="color:#fafafa">urgency</strong>, <strong style="color:#fafafa">willingness to pay</strong>, and <strong style="color:#fafafa">frequency</strong> — with verbatim Reddit evidence and source links for every theme.</p>
+      <p style="color:#a1a1aa;margin:24px 0 0">Reports rank pain themes by <strong style="color:#fafafa">urgency</strong>, <strong style="color:#fafafa">willingness to pay</strong>, and <strong style="color:#fafafa">frequency</strong> — with verbatim evidence and source links for every theme.</p>
       <p style="color:#a1a1aa;margin:16px 0 0">Questions? Reply to this email or write to <a href="mailto:${site.email}" style="color:#818cf8">${site.email}</a>.</p>
     </div>
   </body>

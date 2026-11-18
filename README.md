@@ -1,9 +1,15 @@
-# Reddit Pain Radar — Landing Page
+# PainProof
 
-Single-page marketing site for **Reddit Pain Radar**, a SaaS that scans Reddit
-communities, scores pain signals by urgency and willingness to pay, and delivers
-build-ready opportunity reports. The page has one job: convert visitors into
-early-access signups at $29/month.
+**Problems worth building, with proof.** A free weekly newsletter of real pains
+(each with linked evidence) and **Check My Idea**, a $9 report that checks a
+founder's idea against public conversations on Hacker News and GitHub. Built for
+first-time founders and indie hackers. See [`painproof/README.md`](painproof/README.md)
+for the business plan.
+
+> **Migration in progress.** This repo started as "Reddit Pain Radar". The
+> landing page is PainProof; the backend sections below (v1 API, workers,
+> evidence bridge) still describe the Reddit-era pipeline until later phases
+> replace it.
 
 Built with **Next.js 16 (App Router)** and **Tailwind CSS v4**, and animated with
 **motion** (`motion/react`). Effects are hand-built in `components/ui` (no external
@@ -34,8 +40,8 @@ Copy `.env.example` to `.env.local` and fill in as needed:
 
 | Variable                          | Purpose                                                                              |
 | --------------------------------- | ------------------------------------------------------------------------------------ |
-| `NEXT_PUBLIC_STRIPE_PAYMENT_LINK` | CTA target. If unset, CTAs fall back to `#waitlist`.                                 |
-| `NEXT_PUBLIC_SITE_URL`            | Canonical origin for metadata/sitemap (default `https://redditpainradar.com`).       |
+| `NEXT_PUBLIC_STRIPE_PAYMENT_LINK` | Checkout fallback. If unset, it falls back to `#subscribe`.                          |
+| `NEXT_PUBLIC_SITE_URL`            | Canonical origin for metadata/sitemap (default `https://painproof.co`).              |
 | `DATABASE_URL`                    | PostgreSQL connection string used by Drizzle ORM (`db/`).                            |
 | `DATABASE_ADMIN_URL`              | Optional privileged (RLS-bypassing) connection for signup + API-key lookup.          |
 | `STRIPE_SECRET_KEY`               | Stripe API key used by the billing webhook.                                          |
@@ -144,7 +150,7 @@ All landing CTAs are plain links to **`GET /api/checkout`**, which redirects
 into Stripe's hosted subscription Checkout when `STRIPE_SECRET_KEY` and
 `STRIPE_PRICE_STARTER` are set (with `metadata.plan = "starter"`, feeding the
 provisioning webhook below). Unconfigured installs — or a Stripe error —
-degrade to `NEXT_PUBLIC_STRIPE_PAYMENT_LINK`, then the on-page `#waitlist`,
+degrade to `NEXT_PUBLIC_STRIPE_PAYMENT_LINK`, then the on-page `#subscribe`,
 so a partially-configured deploy never shows a dead CTA. The endpoint is
 rate-limited per IP (10/min, in-memory). Success returns to
 `/?checkout=success`, where a dismissible banner
@@ -258,25 +264,25 @@ psql "postgres://owner:<pw>@<host>/<db>" -c \
 
 ### 2. Environment variables
 
-| Variable                          | Required    | Notes                                                                                  |
-| --------------------------------- | ----------- | -------------------------------------------------------------------------------------- |
-| `DATABASE_URL`                    | yes         | Non-owner role, `?sslmode=require`                                                     |
-| `DATABASE_ADMIN_URL`              | yes in prod | Owner role; used for provisioning + key lookup                                         |
-| `AUTH_SECRET`                     | yes         | `node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"`       |
-| `AUTH_URL`                        | recommended | `https://redditpainradar.com` (magic-link callbacks)                                   |
-| `NEXT_PUBLIC_SITE_URL`            | yes         | Canonical origin for metadata, sitemap, OG                                             |
-| `STRIPE_SECRET_KEY`               | yes         | Live or test secret key                                                                |
-| `STRIPE_WEBHOOK_SECRET`           | yes         | From the webhook endpoint you create below                                             |
-| `STRIPE_PRICE_STARTER`            | yes         | Price id for the $29/mo plan                                                           |
-| `STRIPE_PRICE_PRO`                | optional    | Maps a second price to `pro`                                                           |
-| `RESEND_API_KEY`                  | yes         | Without it, emails are only logged                                                     |
-| `EMAIL_FROM`                      | yes         | Must be a verified Resend domain, e.g. `Reddit Pain Radar <hello@redditpainradar.com>` |
-| `PG_POOL_MAX`                     | optional    | Connections per function instance (default 3)                                          |
-| `NEXT_PUBLIC_STRIPE_PAYMENT_LINK` | optional    | Fallback CTA when Stripe Checkout is not configured                                    |
+| Variable                          | Required    | Notes                                                                            |
+| --------------------------------- | ----------- | -------------------------------------------------------------------------------- |
+| `DATABASE_URL`                    | yes         | Non-owner role, `?sslmode=require`                                               |
+| `DATABASE_ADMIN_URL`              | yes in prod | Owner role; used for provisioning + key lookup                                   |
+| `AUTH_SECRET`                     | yes         | `node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"` |
+| `AUTH_URL`                        | recommended | `https://painproof.co` (magic-link callbacks)                                    |
+| `NEXT_PUBLIC_SITE_URL`            | yes         | Canonical origin for metadata, sitemap, OG                                       |
+| `STRIPE_SECRET_KEY`               | yes         | Live or test secret key                                                          |
+| `STRIPE_WEBHOOK_SECRET`           | yes         | From the webhook endpoint you create below                                       |
+| `STRIPE_PRICE_STARTER`            | yes         | Price id for the $29/mo plan                                                     |
+| `STRIPE_PRICE_PRO`                | optional    | Maps a second price to `pro`                                                     |
+| `RESEND_API_KEY`                  | yes         | Without it, emails are only logged                                               |
+| `EMAIL_FROM`                      | yes         | Must be a verified Resend domain, e.g. `PainProof <hello@painproof.co>`          |
+| `PG_POOL_MAX`                     | optional    | Connections per function instance (default 3)                                    |
+| `NEXT_PUBLIC_STRIPE_PAYMENT_LINK` | optional    | Fallback CTA when Stripe Checkout is not configured                              |
 
 Set them for Production, Preview and Development in the Vercel project; a
 missing `AUTH_SECRET` breaks sign-in, a missing `STRIPE_SECRET_KEY` silently
-downgrades every CTA to the waitlist.
+sends checkout to the newsletter signup.
 
 ### 3. Stripe
 

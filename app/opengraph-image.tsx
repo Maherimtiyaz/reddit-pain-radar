@@ -67,7 +67,7 @@ export default function OpengraphImage() {
             maxWidth: 900,
           }}
         >
-          Find what founders are complaining about.
+          Build what people already want.
         </div>
         <div
           style={{
@@ -77,7 +77,7 @@ export default function OpengraphImage() {
             lineHeight: 1.3,
           }}
         >
-          Scored pain-point reports mined from Reddit communities.
+          Problems worth building, with proof — from Hacker News and GitHub.
         </div>
       </div>
 
@@ -89,13 +89,11 @@ export default function OpengraphImage() {
           color: "#a1a1aa",
         }}
       >
-        <span>Urgency</span>
+        <span>Free weekly newsletter</span>
         <span style={{ color: "#3f3f46" }}>·</span>
-        <span>Willingness to pay</span>
+        <span>Check My Idea</span>
         <span style={{ color: "#3f3f46" }}>·</span>
-        <span>Verbatim evidence</span>
-        <span style={{ color: "#3f3f46" }}>·</span>
-        <span>Markdown export</span>
+        <span>Linked evidence</span>
       </div>
     </div>,
     { ...size },

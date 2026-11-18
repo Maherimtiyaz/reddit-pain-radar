@@ -12,9 +12,9 @@ import { finalCta } from "@/lib/copy";
 
 /** Attribution captured from `?ref=` / `?utm_source=` without a hook, so the page stays static. */
 function currentSource(): string {
-  if (typeof window === "undefined") return "landing";
+  if (typeof window === "undefined") return "newsletter";
   const params = new URLSearchParams(window.location.search);
-  return params.get("ref") ?? params.get("utm_source") ?? "landing";
+  return params.get("ref") ?? params.get("utm_source") ?? "newsletter";
 }
 
 export function FinalCta() {
@@ -39,14 +39,14 @@ export function FinalCta() {
   }
 
   return (
-    <Section id="waitlist" className="pb-24">
+    <Section id="subscribe" className="pb-24">
       <Container className="max-w-3xl">
         <Reveal className="border-line from-surface to-canvas relative overflow-hidden rounded-3xl border bg-gradient-to-b px-6 py-14 text-center sm:px-12">
           <div className="bg-brand/20 pointer-events-none absolute -top-32 left-1/2 size-72 -translate-x-1/2 rounded-full blur-3xl" />
           <div className="relative flex flex-col items-center gap-4">
             <span className="border-line bg-surface/80 text-ink-muted inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs backdrop-blur">
               <Mail className="size-3.5" aria-hidden="true" />
-              Early access
+              {finalCta.badge}
             </span>
             <h2 className="font-heading text-ink text-3xl font-semibold tracking-tight text-balance md:text-4xl">
               {finalCta.headline}
@@ -66,11 +66,11 @@ export function FinalCta() {
                   onSubmit={handleSubmit}
                   className="mt-2 flex w-full max-w-md flex-col gap-3 sm:flex-row"
                 >
-                  <label htmlFor="waitlist-email" className="sr-only">
+                  <label htmlFor="subscribe-email" className="sr-only">
                     Email address
                   </label>
                   <Input
-                    id="waitlist-email"
+                    id="subscribe-email"
                     type="email"
                     required
                     value={email}

@@ -13,7 +13,7 @@ export const metadata: Metadata = {
   alternates: { canonical: "/terms" },
 };
 
-const UPDATED = "October 27, 2026";
+const UPDATED = "November 18, 2026";
 
 export default function TermsPage() {
   return (
@@ -26,9 +26,11 @@ export default function TermsPage() {
 
       <LegalSection heading="The service">
         <p>
-          {site.name} scans public Reddit communities, scores the pain points it
-          finds, and turns them into reports you can act on. You can read those
-          reports in the dashboard or fetch them through the JSON API.
+          {site.name} reads public conversations on sources such as Hacker News
+          and GitHub, scores the pain points it finds, and turns them into a
+          free newsletter and paid reports you can act on. You can read reports
+          on the website or in the dashboard, or fetch them through the JSON
+          API.
         </p>
         <p>
           Reports are derived analysis of public conversations. They are
@@ -69,7 +71,7 @@ export default function TermsPage() {
             "Resell, redistribute, or publicly republish the reports or the underlying evidence as a competing dataset.",
             "Attempt to bypass quotas, rate limits, authentication, or tenant isolation.",
             "Scrape, overload, or reverse-engineer the service, or use it to build a competing product.",
-            "Use the service in a way that violates Reddit's own terms or the rights of Reddit users.",
+            "Use the service in a way that violates the terms of the sources we read or the rights of the people who wrote the posts.",
           ]}
         />
         <p>
@@ -89,25 +91,26 @@ export default function TermsPage() {
 
       <LegalSection heading="Content and ownership">
         <p>
-          The posts and comments we analyse belong to their authors on Reddit.
-          We do not claim ownership of them. The reports, scoring, and software
-          that make up {site.name} belong to us; your subscription grants you a
-          licence to use them for your own business, not to resell them.
+          The posts and comments we quote belong to their authors. We do not
+          claim ownership of them; we quote short excerpts and link to the
+          original. The reports, scoring, and software that make up {site.name}{" "}
+          belong to us; your subscription grants you a licence to use them for
+          your own business, not to resell them.
         </p>
         <p>
-          Data you put into the service — your tracked subreddits, keyword sets,
-          and workspace details — remains yours.
+          Data you put into the service — the ideas you submit, the topics you
+          track, and your workspace details — remains yours. We do not publish
+          or share the ideas you submit.
         </p>
       </LegalSection>
 
       <LegalSection heading="Availability">
         <p>
           We aim to keep the service running and the evidence fresh, but we do
-          not guarantee uninterrupted availability or that any particular
-          subreddit or post will be ingested. Reddit&apos;s API, our model
-          provider, and our hosting can all fail independently. Unless we have
-          agreed a separate written SLA, the service is provided &ldquo;as
-          is&rdquo;.
+          not guarantee uninterrupted availability or that any particular source
+          or post will be found. The source APIs, our model provider, and our
+          hosting can all fail independently. Unless we have agreed a separate
+          written SLA, the service is provided &ldquo;as is&rdquo;.
         </p>
       </LegalSection>
 

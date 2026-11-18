@@ -1,4 +1,4 @@
-import { Code2, Flame, Gauge, Quote } from "lucide-react";
+import { FlaskConical, Gauge, Quote, Swords } from "lucide-react";
 
 import { BentoGrid, BentoGridItem } from "@/components/ui/bento-grid";
 import { RevealGroup, RevealItem } from "@/components/ui/reveal";
@@ -6,18 +6,18 @@ import { Container, Section, SectionHeading } from "@/components/ui/section";
 import { features } from "@/lib/copy";
 import { cn } from "@/lib/utils";
 
-const ICONS = [Gauge, Quote, Flame, Code2];
+const ICONS = [Gauge, Quote, Swords, FlaskConical];
+
+const TONE = {
+  brand: "text-brand-light",
+  signal: "text-signal",
+  urgency: "text-urgency",
+} as const;
 
 function ScoreChips() {
-  const chips = [
-    { label: "Urgency", value: "9", tone: "text-urgency" },
-    { label: "Freq", value: "84", tone: "text-brand-light" },
-    { label: "WTP", value: "8", tone: "text-signal" },
-  ];
-
   return (
     <div className="flex flex-wrap gap-2">
-      {chips.map((chip) => (
+      {features.scoreChips.map((chip) => (
         <div
           key={chip.label}
           className="border-line bg-surface-2/70 flex items-center gap-2 rounded-lg border px-3 py-1.5"
@@ -25,8 +25,13 @@ function ScoreChips() {
           <span className="text-ink-faint text-[0.7rem] tracking-wide uppercase">
             {chip.label}
           </span>
-          <span className={cn("font-heading text-sm font-semibold", chip.tone)}>
-            {chip.value}
+          <span
+            className={cn(
+              "font-heading text-sm font-semibold",
+              TONE[chip.tone],
+            )}
+          >
+            {chip.value}/10
           </span>
         </div>
       ))}

@@ -11,8 +11,6 @@ import { Container, Section, SectionHeading } from "@/components/ui/section";
 import { demo } from "@/lib/copy";
 import { EASE } from "@/lib/motion";
 
-const ctaHref = "/api/checkout";
-
 function AnimatedBar({ label, value }: { label: string; value: number }) {
   return (
     <div className="flex items-center gap-3">
@@ -80,7 +78,7 @@ function AnimatedScore() {
 
 export function DemoReport() {
   return (
-    <Section id="demo" className="bg-surface/30 border-line border-y">
+    <Section id="sample" className="bg-surface/30 border-line border-y">
       <Container>
         <SectionHeading
           eyebrow={demo.eyebrow}
@@ -98,12 +96,15 @@ export function DemoReport() {
                   <AnimatedScore />
                   <div>
                     <div className="text-ink-faint text-[0.7rem] font-medium tracking-widest uppercase">
-                      Theme
+                      Idea
                     </div>
                     <div className="font-heading text-ink mt-1 text-lg font-semibold tracking-tight sm:text-xl">
                       {demo.theme}
                     </div>
                     <div className="mt-3 flex flex-wrap gap-2">
+                      <span className="border-urgency/40 bg-urgency/10 text-urgency rounded-full border px-3 py-1 text-xs font-medium">
+                        Verdict: {demo.verdict}
+                      </span>
                       {demo.metrics.map((metric) => (
                         <span
                           key={metric.label}
@@ -130,7 +131,14 @@ export function DemoReport() {
                     &ldquo;{demo.quote}&rdquo;
                   </blockquote>
                   <figcaption className="text-ink-faint mt-2 text-xs">
-                    {demo.quoteAuthor}
+                    <a
+                      href={demo.quoteUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="hover:text-ink-muted underline underline-offset-4"
+                    >
+                      {demo.quoteAuthor}
+                    </a>
                   </figcaption>
                 </figure>
               </div>
@@ -149,7 +157,7 @@ export function DemoReport() {
                 <div className="border-line bg-surface-2/60 rounded-xl border p-4">
                   <div className="text-brand-light mb-2 flex items-center gap-2 text-xs font-medium tracking-wide uppercase">
                     <Sparkles className="size-3.5" aria-hidden="true" />
-                    Build recommendation
+                    What to do instead
                   </div>
                   <p className="text-ink-muted text-sm leading-relaxed">
                     {demo.recommendation}
@@ -160,7 +168,7 @@ export function DemoReport() {
                   asChild
                   className="h-12 w-full text-base sm:w-auto sm:self-start"
                 >
-                  <a href={ctaHref}>
+                  <a href="#subscribe">
                     {demo.cta}
                     <ArrowRight className="size-4" />
                   </a>

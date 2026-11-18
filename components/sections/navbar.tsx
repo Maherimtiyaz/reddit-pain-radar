@@ -9,7 +9,7 @@ import { Container } from "@/components/ui/section";
 import { navLinks, site } from "@/lib/site";
 import { cn } from "@/lib/utils";
 
-const ctaHref = "/api/checkout";
+const ctaHref = "#subscribe";
 
 export function Navbar() {
   const [scrolled, setScrolled] = React.useState(false);
@@ -59,7 +59,7 @@ export function Navbar() {
             Sign in
           </a>
           <Button asChild className="h-11 px-5">
-            <a href={ctaHref}>Get early access</a>
+            <a href={ctaHref}>Get the free weekly</a>
           </Button>
         </div>
 
@@ -96,7 +96,7 @@ export function Navbar() {
             </a>
             <Button asChild className="mt-3 h-12 text-base">
               <a href={ctaHref} onClick={() => setOpen(false)}>
-                Get early access
+                Get the free weekly
               </a>
             </Button>
           </Container>
