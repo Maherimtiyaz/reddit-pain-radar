@@ -103,6 +103,25 @@ stripe:smoke` covers the purchase states with signed synthetic events.
 Needs `DEEPSEEK_API_KEY` (or `LLM_API_KEY` + `LLM_BASE_URL` + `LLM_MODEL` for
 any OpenAI-compatible provider). See AGENTS.md → "Check My Idea engine".
 
+## PainProof Weekly
+
+Every Monday `npm run weekly:draft` collects the past week's public pain
+signals (Hacker News comments and Ask HN threads, most-upvoted GitHub feature
+requests), has the model pick 5–7 pains with **verified verbatim quotes**,
+saves a draft and emails it to `WEEKLY_EDITOR_EMAIL`. Review it, paste the
+markdown into your newsletter tool (Beehiiv/Kit sends the email), then:
+
+```bash
+npm run weekly:publish -- 2026-11-16            # publish to /weekly/2026-11-16
+npm run weekly:publish -- 2026-11-16 --drop 3,5 # drop pains 3 and 5 first
+```
+
+`.github/workflows/painproof-cron.yml` runs the draft on Mondays and
+`check:resume` hourly. Add repository secrets `APP_DATABASE_URL`,
+`DEEPSEEK_API_KEY`, `RESEND_API_KEY`, `WEEKLY_EDITOR_EMAIL`,
+`STRIPE_SECRET_KEY` and variables `NEXT_PUBLIC_SITE_URL`, `EMAIL_FROM`,
+`STRIPE_PRICE_CHECK`.
+
 ## Accounts & Sign-in
 
 Customers authenticate with an **email magic link** (Auth.js v5 + Resend,

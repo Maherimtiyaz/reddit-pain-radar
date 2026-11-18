@@ -261,6 +261,7 @@ export const footer = {
         { label: "Sample check", href: "#sample" },
         { label: "Pricing", href: "#pricing" },
         { label: "Weekly newsletter", href: "#subscribe" },
+        { label: "Past issues", href: "/weekly" },
       ],
     },
     {

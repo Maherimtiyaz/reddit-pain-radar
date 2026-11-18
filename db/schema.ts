@@ -17,6 +17,7 @@ import {
 import type Stripe from "stripe";
 
 import type { CheckResult } from "@/lib/check/types";
+import type { WeeklyIssueContent } from "@/lib/weekly/types";
 
 /* ------------------------------------------------------------------ */
 /* Enums                                                               */
@@ -29,6 +30,10 @@ export const reportStatusEnum = pgEnum("report_status", [
   "running",
   "complete",
   "failed",
+]);
+export const weeklyIssueStatusEnum = pgEnum("weekly_issue_status", [
+  "draft",
+  "published",
 ]);
 export const ideaCheckStatusEnum = pgEnum("idea_check_status", [
   "pending_payment",
@@ -293,6 +298,31 @@ export const ideaChecks = pgTable(
 );
 
 /* ------------------------------------------------------------------ */
+/* PainProof Weekly (global — public once published)                   */
+/* ------------------------------------------------------------------ */
+
+/**
+ * One newsletter issue. Generated as a `draft` every week (scripts/weekly-draft.ts),
+ * reviewed by the editor, then `published` to the public /weekly archive.
+ * Sending the email itself happens in the newsletter tool (Beehiiv/Kit).
+ */
+export const weeklyIssues = pgTable(
+  "weekly_issues",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** URL slug, the week's Monday: `2026-11-16`. */
+    slug: text("slug").notNull().unique(),
+    status: weeklyIssueStatusEnum("status").notNull().default("draft"),
+    title: text("title").notNull(),
+    content: jsonb("content").$type<WeeklyIssueContent>().notNull(),
+    markdown: text("markdown").notNull(),
+    createdAt: now(),
+    publishedAt: timestamp("published_at", { withTimezone: true }),
+  },
+  (t) => [index("weekly_issues_status_idx").on(t.status)],
+);
+
+/* ------------------------------------------------------------------ */
 /* Marketing (global, intentionally NOT org-scoped)                    */
 /* ------------------------------------------------------------------ */
 
@@ -389,6 +419,7 @@ export const relations = defineRelations(
     reports,
     apiKeys,
     ideaChecks,
+    weeklyIssues,
   },
   (r) => ({
     users: {
@@ -458,6 +489,7 @@ export type NewApiKey = typeof apiKeys.$inferInsert;
 export type StripeEvent = typeof stripeEvents.$inferSelect;
 export type NewStripeEvent = typeof stripeEvents.$inferInsert;
 export type IdeaCheck = typeof ideaChecks.$inferSelect;
+export type WeeklyIssue = typeof weeklyIssues.$inferSelect;
 export type NewIdeaCheck = typeof ideaChecks.$inferInsert;
 export type Waitlist = typeof waitlist.$inferSelect;
 export type NewWaitlist = typeof waitlist.$inferInsert;
