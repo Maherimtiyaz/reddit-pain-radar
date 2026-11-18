@@ -3,7 +3,7 @@ import { ArrowRight, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { RevealGroup, RevealItem } from "@/components/ui/reveal";
 import { Container, Section, SectionHeading } from "@/components/ui/section";
-import { isCheckSaleOpen } from "@/lib/check/availability";
+import { isCheckSaleOpen, isProSaleOpen } from "@/lib/check/availability";
 import { pricing } from "@/lib/copy";
 import { cn } from "@/lib/utils";
 
@@ -75,6 +75,10 @@ function TierCard({ tier, open }: { tier: Tier; open: boolean }) {
 
 export function Pricing() {
   const open = isCheckSaleOpen();
+  // Pro is only listed when it can actually be bought.
+  const tiers = pricing.tiers.filter(
+    (tier) => tier.name !== "PainProof Pro" || isProSaleOpen(),
+  );
   return (
     <Section id="pricing">
       <Container>
@@ -84,8 +88,15 @@ export function Pricing() {
           subtitle={pricing.subtitle}
         />
 
-        <RevealGroup className="mx-auto mt-14 grid max-w-4xl gap-6 md:grid-cols-2">
-          {pricing.tiers.map((tier) => (
+        <RevealGroup
+          className={cn(
+            "mx-auto mt-14 grid gap-6",
+            tiers.length === 3
+              ? "max-w-6xl md:grid-cols-3"
+              : "max-w-4xl md:grid-cols-2",
+          )}
+        >
+          {tiers.map((tier) => (
             <RevealItem key={tier.name}>
               <TierCard tier={tier} open={open} />
             </RevealItem>

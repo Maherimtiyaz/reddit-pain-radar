@@ -13,12 +13,21 @@ import {
 } from "@/db/queries";
 import type { Membership } from "@/db/schema";
 import {
+  checkQuota,
   effectivePlan,
+  hasProAccess,
   reportQuota,
   startOfUtcMonth,
   TRIAL_DAYS,
+  watchTopicLimit,
   type EffectivePlan,
 } from "@/lib/billing/limits";
+import {
+  countOrgChecksSince,
+  getOrgCheck,
+  listOrgChecks,
+} from "@/lib/check/store";
+import { listWatchTopics } from "@/lib/watch/store";
 
 /**
  * Server-only reads for the account dashboard. Every entry point re-checks the
@@ -115,4 +124,45 @@ export async function getDashboardReport(reportId: string) {
   if (!membership) return null;
 
   return getReport(membership.org.id, reportId);
+}
+
+/* ------------------------------------------------------------------ */
+/* PainProof Pro dashboard                                             */
+/* ------------------------------------------------------------------ */
+
+export async function getProDashboardData() {
+  const user = await requireDashboardUser();
+  const membership = await findOrgForUser(user.id);
+  if (!membership) {
+    return { user, org: null, plan: null, pro: false } as const;
+  }
+
+  const { org } = membership;
+  const plan = effectivePlan(org);
+  const [used, checks, topics] = await Promise.all([
+    countOrgChecksSince(org.id, startOfUtcMonth()),
+    listOrgChecks(org.id, 25),
+    listWatchTopics(org.id),
+  ]);
+
+  return {
+    user,
+    org,
+    plan,
+    pro: hasProAccess(plan),
+    quota: checkQuota(plan),
+    used,
+    topicLimit: watchTopicLimit(plan),
+    checks,
+    topics,
+    canManageBilling: Boolean(org.stripeCustomerId),
+  } as const;
+}
+
+/** One Pro check for the signed-in user's workspace, or null. */
+export async function getDashboardCheck(checkId: string) {
+  const user = await requireDashboardUser();
+  const membership = await findOrgForUser(user.id);
+  if (!membership) return null;
+  return getOrgCheck(membership.org.id, checkId);
 }

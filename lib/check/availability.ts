@@ -12,9 +12,20 @@ function has(name: string): boolean {
 }
 
 export const CHECK_PRICE_LABEL = "$9";
+export const PRO_PRICE_LABEL = "$19";
 
 export function isCheckSaleOpen(): boolean {
   const stripeReady = has("STRIPE_SECRET_KEY") && has("STRIPE_PRICE_CHECK");
+  const llmReady = has("LLM_API_KEY") || has("DEEPSEEK_API_KEY");
+  return stripeReady && llmReady;
+}
+
+/**
+ * Is PainProof Pro (the $19/mo subscription) for sale? Needs the recurring
+ * `STRIPE_PRICE_PRO`, the Stripe key, and a model to run checks.
+ */
+export function isProSaleOpen(): boolean {
+  const stripeReady = has("STRIPE_SECRET_KEY") && has("STRIPE_PRICE_PRO");
   const llmReady = has("LLM_API_KEY") || has("DEEPSEEK_API_KEY");
   return stripeReady && llmReady;
 }

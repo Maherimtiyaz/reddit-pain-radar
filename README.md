@@ -117,10 +117,31 @@ npm run weekly:publish -- 2026-11-16 --drop 3,5 # drop pains 3 and 5 first
 ```
 
 `.github/workflows/painproof-cron.yml` runs the draft on Mondays and
-`check:resume` hourly. Add repository secrets `APP_DATABASE_URL`,
+`check:resume` hourly, and sends niche-watch digests after the Monday draft.
+Add repository secrets `APP_DATABASE_URL`, `APP_DATABASE_ADMIN_URL` (owner
+role — the digest iterates every workspace),
 `DEEPSEEK_API_KEY`, `RESEND_API_KEY`, `WEEKLY_EDITOR_EMAIL`,
 `STRIPE_SECRET_KEY` and variables `NEXT_PUBLIC_SITE_URL`, `EMAIL_FROM`,
 `STRIPE_PRICE_CHECK`.
+
+## PainProof Pro ($19/month)
+
+`GET /api/checkout` sells the Pro subscription (`STRIPE_PRICE_PRO`,
+`metadata.plan=pro`). The webhook provisions the workspace and emails a
+welcome note pointing to `/login`; the customer signs in with the same email.
+
+The dashboard (`/dashboard`) gives Pro workspaces:
+
+- **30 idea checks a month** (calendar month, UTC; failed checks don't count),
+  run with `after()` and viewable at `/dashboard/checks/[id]` (workspace-scoped,
+  no token needed). The private-link email is sent too.
+- **Niche watch:** up to 5 topics; `npm run watch:digest` (Mondays in the
+  cron) emails new pain quotes per topic — no model, verbatim and linked.
+  Topics are marked sent only after the email is delivered.
+- **Manage billing:** Stripe's customer portal.
+
+Canceled or unpaid subscriptions fall back to `trial` (via the existing
+subscription webhooks): checks and niche watch pause, past reports stay.
 
 ## Accounts & Sign-in
 
@@ -332,7 +353,10 @@ sends checkout to the newsletter signup.
 1. **Check My Idea:** create a product "Check My Idea" with a **$9 one-time**
    price → `STRIPE_PRICE_CHECK`. To give early testers free reports, create a
    100%-off coupon + promotion code (Checkout accepts promotion codes).
-2. Subscription (Pro, later): a recurring price → `STRIPE_PRICE_STARTER`.
+2. **PainProof Pro:** a product "PainProof Pro" with a **$19/month recurring**
+   price → `STRIPE_PRICE_PRO`. In Stripe → Settings → Billing → **Customer
+   portal**, turn the portal on (cancel, update card, invoices) — the
+   dashboard's "Manage billing" button opens it.
 3. Add a webhook endpoint `https://<domain>/api/webhooks/stripe` subscribed to
    `checkout.session.completed`, `checkout.session.async_payment_succeeded`,
    `customer.subscription.updated`, `customer.subscription.deleted`,

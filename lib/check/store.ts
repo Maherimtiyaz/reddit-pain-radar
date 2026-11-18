@@ -5,7 +5,7 @@
 
 import { createHash, randomBytes } from "node:crypto";
 
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq, gte, ne } from "drizzle-orm";
 
 import { db } from "@/db";
 import { ideaChecks, type IdeaCheck } from "@/db/schema";
@@ -36,6 +36,8 @@ export type CreateCheckInput = {
   email?: string | null;
   origin: "cli" | "checkout" | "pro";
   status?: "pending_payment" | "queued";
+  /** Pro checks: the workspace whose monthly quota this uses. */
+  orgId?: string | null;
 };
 
 /** Insert a check; returns its id and the plaintext token (shown once). */
@@ -51,6 +53,7 @@ export async function createIdeaCheck(
       origin: input.origin,
       status: input.status ?? "queued",
       accessTokenHash: tokenHash,
+      orgId: input.orgId ?? null,
     })
     .returning({ id: ideaChecks.id });
   return { id: row.id, token };
@@ -114,4 +117,69 @@ export async function runStoredCheck(
       .returning();
     return failed;
   }
+}
+
+/* ------------------------------------------------------------------ */
+/* Pro: a workspace's checks (app-layer scoped by org_id)              */
+/* ------------------------------------------------------------------ */
+
+/** Checks counted against the monthly quota: everything except failures. */
+export async function countOrgChecksSince(
+  orgId: string,
+  since: Date,
+): Promise<number> {
+  const rows = await db
+    .select({ id: ideaChecks.id })
+    .from(ideaChecks)
+    .where(
+      and(
+        eq(ideaChecks.orgId, orgId),
+        gte(ideaChecks.createdAt, since),
+        ne(ideaChecks.status, "failed"),
+      ),
+    );
+  return rows.length;
+}
+
+export type OrgCheckSummary = Pick<
+  IdeaCheck,
+  "id" | "idea" | "status" | "score" | "verdict" | "createdAt"
+> & { headline: string | null };
+
+export async function listOrgChecks(
+  orgId: string,
+  limit = 25,
+): Promise<OrgCheckSummary[]> {
+  const rows = await db
+    .select({
+      id: ideaChecks.id,
+      idea: ideaChecks.idea,
+      status: ideaChecks.status,
+      score: ideaChecks.score,
+      verdict: ideaChecks.verdict,
+      createdAt: ideaChecks.createdAt,
+      result: ideaChecks.result,
+    })
+    .from(ideaChecks)
+    .where(eq(ideaChecks.orgId, orgId))
+    .orderBy(desc(ideaChecks.createdAt))
+    .limit(limit);
+  return rows.map(({ result, ...row }) => ({
+    ...row,
+    headline: result?.headline ?? null,
+  }));
+}
+
+/** One check, only if it belongs to the workspace. */
+export async function getOrgCheck(
+  orgId: string,
+  id: string,
+): Promise<IdeaCheck | null> {
+  if (!UUID_RE.test(id)) return null;
+  const [row] = await db
+    .select()
+    .from(ideaChecks)
+    .where(and(eq(ideaChecks.id, id), eq(ideaChecks.orgId, orgId)))
+    .limit(1);
+  return row ?? null;
 }

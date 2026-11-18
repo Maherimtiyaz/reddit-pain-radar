@@ -1,7 +1,8 @@
 name: PainProof cron
 
 # Monday: draft this week's PainProof Weekly issue (saved as a draft and
-# emailed to WEEKLY_EDITOR_EMAIL; publish it yourself after review).
+# emailed to WEEKLY_EDITOR_EMAIL; publish it yourself after review), then send
+# every Pro workspace its niche-watch digest.
 # Hourly: restart any paid Check My Idea run that got stuck.
 
 on:
@@ -59,6 +60,14 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run weekly:draft
+
+      # Iterates every workspace, so it needs the table-owning connection
+      # (RLS would hide other orgs from the app role).
+      - name: Niche-watch digests
+        if: always()
+        env:
+          DATABASE_ADMIN_URL: ${{ secrets.APP_DATABASE_ADMIN_URL }}
+        run: npm run watch:digest
 
   check-resume:
     if: github.event.schedule == '23 * * * *' || inputs.job == 'check-resume'

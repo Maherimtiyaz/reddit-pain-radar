@@ -8,11 +8,12 @@ import { site } from "@/lib/site";
  * The CTAs are plain `<a href="/api/checkout">` links (they work from server
  * and client sections alike), so the whole resolution chain lives here:
  *
- *   configured (STRIPE_SECRET_KEY + STRIPE_PRICE_STARTER)
- *     -> 302 to a subscription Checkout Session
+ *   configured (STRIPE_SECRET_KEY + STRIPE_PRICE_PRO, or the legacy
+ *   STRIPE_PRICE_STARTER) -> 302 to a PainProof Pro subscription Checkout Session
  *   otherwise -> 302 to the legacy payment link, else the #subscribe newsletter signup.
  *
- * The session carries `metadata.plan = "starter"`, which is exactly what the
+ * The session carries `metadata.plan` ("pro", or "starter" for the legacy
+ * price), which is exactly what the
  * provisioning webhook (`checkout.session.completed`) reads, so a purchase
  * through this path provisions the org + first API key like a payment-link
  * purchase does. Failures degrade the same way as an unconfigured install:
@@ -68,7 +69,10 @@ export async function GET(request: Request): Promise<Response> {
   }
 
   const apiKey = process.env.STRIPE_SECRET_KEY?.trim();
-  const price = process.env.STRIPE_PRICE_STARTER?.trim();
+  const proPrice = process.env.STRIPE_PRICE_PRO?.trim();
+  const legacyPrice = process.env.STRIPE_PRICE_STARTER?.trim();
+  const price = proPrice || legacyPrice;
+  const plan = proPrice ? "pro" : "starter";
   if (!apiKey || !price) {
     return redirect(fallback);
   }
@@ -78,7 +82,7 @@ export async function GET(request: Request): Promise<Response> {
       mode: "subscription",
       line_items: [{ price, quantity: 1 }],
       allow_promotion_codes: true,
-      metadata: { plan: "starter" },
+      metadata: { plan },
       success_url: `${origin}/?checkout=success`,
       cancel_url: `${origin}/#pricing`,
     });
