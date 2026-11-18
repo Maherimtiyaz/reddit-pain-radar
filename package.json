@@ -25,7 +25,8 @@
     "api:smoke": "tsx scripts/api-smoke.ts",
     "stripe:smoke": "tsx scripts/stripe-webhook-smoke.ts",
     "evidence:smoke": "tsx scripts/evidence-smoke.ts",
-    "check:idea": "tsx scripts/check-idea.ts"
+    "check:idea": "tsx scripts/check-idea.ts",
+    "check:resume": "tsx scripts/check-resume.ts"
   },
   "dependencies": {
     "class-variance-authority": "^0.7.1",

@@ -117,3 +117,11 @@ export function defaultChatJson(): ChatJson {
   }
   return createChatJson(config);
 }
+
+/**
+ * Like `defaultChatJson`, but resolves the config on each call, so a missing
+ * key fails the *run* (recorded on the check) instead of the caller's setup.
+ */
+export function lazyChatJson(): ChatJson {
+  return (request) => defaultChatJson()(request);
+}

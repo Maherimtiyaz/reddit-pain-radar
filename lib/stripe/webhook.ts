@@ -12,6 +12,11 @@ import {
 } from "@/db/queries";
 import { orgs, stripeEvents } from "@/db/schema";
 import { generateApiKey } from "@/lib/auth/api-key";
+import {
+  CHECK_METADATA_KIND,
+  markCheckPaid,
+  type PaidCheck,
+} from "@/lib/check/purchase";
 import { sendWelcomeEmail } from "@/lib/email/welcome";
 
 /**
@@ -31,7 +36,19 @@ export type StripeOutcome =
   | { status: "already_provisioned"; orgId: string }
   | { status: "plan_synced"; orgId: string; plan: string }
   | { status: "logged"; reason: string }
-  | { status: "ignored"; reason: string };
+  | { status: "ignored"; reason: string }
+  /** A Check My Idea purchase was paid; the route runs it after responding. */
+  | { status: "check_queued"; checkId: string; paid: PaidCheck };
+
+/** The outcome without secrets (the check token), for logging. */
+export function loggableOutcome(
+  outcome: StripeOutcome,
+): Record<string, unknown> {
+  if (outcome.status === "check_queued") {
+    return { status: outcome.status, checkId: outcome.checkId };
+  }
+  return outcome;
+}
 
 type PaidPlan = "starter" | "pro";
 
@@ -40,7 +57,15 @@ export async function handleStripeEvent(
 ): Promise<StripeOutcome> {
   switch (event.type) {
     case "checkout.session.completed":
+      if (event.data.object.metadata?.kind === CHECK_METADATA_KIND) {
+        return handleCheckPurchase(event.data.object);
+      }
       return handleCheckoutCompleted(event.data.object);
+    case "checkout.session.async_payment_succeeded":
+      // Delayed payment methods: the check becomes paid now, not at completion.
+      return event.data.object.metadata?.kind === CHECK_METADATA_KIND
+        ? handleCheckPurchase(event.data.object)
+        : { status: "ignored", reason: "async payment for a subscription" };
     case "customer.subscription.updated":
       return handleSubscriptionUpdated(event.data.object);
     case "customer.subscription.deleted":
@@ -68,6 +93,24 @@ export async function recordStripeEvent(event: Stripe.Event): Promise<boolean> {
 /* ------------------------------------------------------------------ */
 /* Handlers                                                            */
 /* ------------------------------------------------------------------ */
+
+/**
+ * A one-time Check My Idea purchase. Flips the check to `queued` exactly once
+ * (redeliveries and unpaid async sessions are no-ops); the route handler runs
+ * the check after the 2xx is sent, so Stripe never waits on the research.
+ */
+async function handleCheckPurchase(
+  session: Stripe.Checkout.Session,
+): Promise<StripeOutcome> {
+  const paid = await markCheckPaid(session);
+  if (!paid) {
+    return {
+      status: "ignored",
+      reason: `check ${session.metadata?.ideaCheckId ?? "?"} not payable now (payment_status ${session.payment_status}, or already queued)`,
+    };
+  }
+  return { status: "check_queued", checkId: paid.checkId, paid };
+}
 
 /**
  * A completed subscription checkout is the moment a customer is born:

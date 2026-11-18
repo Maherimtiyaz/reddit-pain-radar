@@ -3,12 +3,15 @@ import { ArrowRight, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { RevealGroup, RevealItem } from "@/components/ui/reveal";
 import { Container, Section, SectionHeading } from "@/components/ui/section";
+import { isCheckSaleOpen } from "@/lib/check/availability";
 import { pricing } from "@/lib/copy";
 import { cn } from "@/lib/utils";
 
 type Tier = (typeof pricing.tiers)[number];
 
-function TierCard({ tier }: { tier: Tier }) {
+function TierCard({ tier, open }: { tier: Tier; open: boolean }) {
+  const href = open ? tier.openHref : tier.href;
+  const cta = open ? tier.openCta : tier.cta;
   return (
     <div
       className={cn(
@@ -23,7 +26,7 @@ function TierCard({ tier }: { tier: Tier }) {
           <span className="font-heading text-ink text-lg font-semibold">
             {tier.name}
           </span>
-          {tier.badge ? (
+          {tier.badge && !open ? (
             <span className="border-urgency/40 bg-urgency/10 text-urgency rounded-full border px-3 py-1 text-xs font-medium">
               {tier.badge}
             </span>
@@ -49,8 +52,8 @@ function TierCard({ tier }: { tier: Tier }) {
             !tier.highlight && "border-line bg-surface-2/60",
           )}
         >
-          <a href={tier.href}>
-            {tier.cta}
+          <a href={href}>
+            {cta}
             <ArrowRight className="size-4" />
           </a>
         </Button>
@@ -71,6 +74,7 @@ function TierCard({ tier }: { tier: Tier }) {
 }
 
 export function Pricing() {
+  const open = isCheckSaleOpen();
   return (
     <Section id="pricing">
       <Container>
@@ -83,7 +87,7 @@ export function Pricing() {
         <RevealGroup className="mx-auto mt-14 grid max-w-4xl gap-6 md:grid-cols-2">
           {pricing.tiers.map((tier) => (
             <RevealItem key={tier.name}>
-              <TierCard tier={tier} />
+              <TierCard tier={tier} open={open} />
             </RevealItem>
           ))}
         </RevealGroup>

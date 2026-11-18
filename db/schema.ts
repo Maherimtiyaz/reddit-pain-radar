@@ -279,6 +279,9 @@ export const ideaChecks = pgTable(
     result: jsonb("result").$type<CheckResult>(),
     markdown: text("markdown"),
     error: text("error"),
+    /** Set when the buyer is sent to Stripe; the webhook matches on it. */
+    stripeCheckoutSessionId: text("stripe_checkout_session_id").unique(),
+    paidAt: timestamp("paid_at", { withTimezone: true }),
     createdAt: now(),
     startedAt: timestamp("started_at", { withTimezone: true }),
     completedAt: timestamp("completed_at", { withTimezone: true }),

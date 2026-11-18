@@ -10,6 +10,7 @@ import { HowItWorks } from "@/components/sections/how-it-works";
 import { Navbar } from "@/components/sections/navbar";
 import { Pricing } from "@/components/sections/pricing";
 import { Sources } from "@/components/sections/sources";
+import { isCheckSaleOpen } from "@/lib/check/availability";
 import { site } from "@/lib/site";
 
 const jsonLd = {
@@ -39,7 +40,7 @@ export default function Home() {
       <CheckoutSuccess />
       <Navbar />
       <main className="flex-1">
-        <Hero />
+        <Hero checkOpen={isCheckSaleOpen()} />
         <Sources />
         <HowItWorks />
         <Features />

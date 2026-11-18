@@ -19,7 +19,10 @@ export const hero = {
   ],
   ctaPrimary: "Get the free weekly",
   ctaSecondary: "See a sample idea check",
-  note: "Check My Idea ($9 per report) launches soon. Subscribers get first access.",
+  noteSoon:
+    "Check My Idea ($9 per report) launches soon. Subscribers get first access.",
+  noteOpen: "Already have an idea?",
+  noteOpenLink: "Check it against real evidence for $9 →",
 } as const;
 
 export const sources = {
@@ -135,6 +138,8 @@ export const pricing = {
       ],
       cta: "Subscribe free",
       href: "#subscribe",
+      openCta: "Subscribe free",
+      openHref: "#subscribe",
       highlight: false,
     },
     {
@@ -152,9 +157,44 @@ export const pricing = {
       ],
       cta: "Get early access",
       href: "?ref=check-my-idea#subscribe",
+      openCta: "Check my idea",
+      openHref: "/check",
       highlight: true,
     },
   ],
+} as const;
+
+export const checkOrder = {
+  title: "Is your idea worth building?",
+  subtitle:
+    "Describe it in a sentence. We search Hacker News and GitHub for real people describing the problem, check who already solves it, and give you an honest verdict with the proof linked.",
+  youGet: [
+    "Verdict: build, niche down, or skip",
+    "PainProof Score with the full breakdown",
+    "Verbatim quotes, each linked to the source",
+    "Competitors and where they fall short",
+    "Your 48-hour validation test",
+    "Report in about 2 minutes, also emailed",
+  ],
+  ideaLabel: "Your idea — who it's for and what it does",
+  ideaPlaceholder:
+    "e.g. Automatic payment reminders for freelance designers who chase late invoices",
+  examples: [
+    "Invoice reminders for freelance designers",
+    "Booking and payments for independent yoga teachers",
+    "Changelog emails for small SaaS teams",
+  ],
+  emailLabel: "Email — we send the private report link here",
+  submit: "Continue to payment",
+  paymentNote:
+    "Secure payment by Stripe. Have a promo code? Add it on the next screen.",
+  canceled: "Payment canceled — nothing was charged. Your idea is still here.",
+  soonTitle: "Launching soon",
+  soonBody:
+    "Check My Idea isn't open on this site yet. Subscribe to the free weekly and you'll hear the moment it is.",
+  soonCta: "Get notified",
+  footnote:
+    "Your idea is private: we don't publish it or share it. Quotes in reports are copied verbatim from public posts and link to the original. Reports are research, not business, legal or financial advice.",
 } as const;
 
 export const faq = {
@@ -180,11 +220,17 @@ export const faq = {
       q: "What if my idea gets a “skip”?",
       a: "That's the most valuable answer we can give: it saves you months. The report still shows which nearby angles look stronger.",
     },
-    {
+  ],
+  launch: {
+    soon: {
       q: "When does Check My Idea launch?",
       a: "Soon. Newsletter subscribers hear first. The newsletter is free, and every issue has an unsubscribe link.",
     },
-  ],
+    open: {
+      q: "How does Check My Idea work?",
+      a: "Describe your idea and pay $9. In about 2 minutes you get a private report link (also emailed) with the verdict, the score breakdown, linked quotes, competitors and a 48-hour test. If something breaks on our side, we re-run it or refund you.",
+    },
+  },
 } as const;
 
 export const finalCta = {

@@ -91,7 +91,14 @@ are not verbatim are dropped. Reports are stored in `idea_checks` and read at
 ```bash
 npm run check:idea -- "Invoice reminders for freelance designers"          # print the report
 npm run check:idea -- "Invoice reminders for freelance designers" --save   # store it + print the private link
+npm run check:resume                                                         # restart stuck paid checks
 ```
+
+**Buying a check:** `/check` (form) → `startCheckAction` creates a
+`pending_payment` row and a $9 Stripe Checkout Session → the webhook flips it
+to `queued` exactly once (card, async payment, or 100%-off code) → the check
+runs via `after()` → the private link is emailed (Resend). `npm run
+stripe:smoke` covers the purchase states with signed synthetic events.
 
 Needs `DEEPSEEK_API_KEY` (or `LLM_API_KEY` + `LLM_BASE_URL` + `LLM_MODEL` for
 any OpenAI-compatible provider). See AGENTS.md → "Check My Idea engine".
@@ -303,13 +310,23 @@ sends checkout to the newsletter signup.
 
 ### 3. Stripe
 
-1. Create the product and a **$29/month recurring** price → `STRIPE_PRICE_STARTER`.
-2. Add a webhook endpoint `https://<domain>/api/webhooks/stripe` subscribed to
-   `checkout.session.completed`, `customer.subscription.updated`,
-   `customer.subscription.deleted`, `invoice.payment_failed`.
-3. Copy the signing secret into `STRIPE_WEBHOOK_SECRET`.
-4. Checkout metadata (`plan=starter`) is what provisions the org, owner, first
-   API key and welcome email — no manual step after a purchase.
+1. **Check My Idea:** create a product "Check My Idea" with a **$9 one-time**
+   price → `STRIPE_PRICE_CHECK`. To give early testers free reports, create a
+   100%-off coupon + promotion code (Checkout accepts promotion codes).
+2. Subscription (Pro, later): a recurring price → `STRIPE_PRICE_STARTER`.
+3. Add a webhook endpoint `https://<domain>/api/webhooks/stripe` subscribed to
+   `checkout.session.completed`, `checkout.session.async_payment_succeeded`,
+   `customer.subscription.updated`, `customer.subscription.deleted`,
+   `invoice.payment_failed`.
+4. Copy the signing secret into `STRIPE_WEBHOOK_SECRET`.
+5. Subscription checkout metadata (`plan=starter`) provisions the org, owner,
+   first API key and welcome email. Check purchases carry
+   `metadata.kind=idea_check` and run the check after the webhook responds
+   (`maxDuration = 300` on the webhook route; Vercel plans cap this).
+6. **Redeploy after setting `STRIPE_PRICE_CHECK`** — the landing and `/check`
+   pages are static and read it at build time.
+7. Stuck paid checks restart when their owner opens the report, or run
+   `npm run check:resume` (safe from cron).
 
 ### 4. Email
 

@@ -1,16 +1,18 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
-import Link from "next/link";
-import { connection } from "next/server";
+import { after, connection } from "next/server";
 import { notFound } from "next/navigation";
-import { ArrowLeft, CircleAlert, LoaderCircle } from "lucide-react";
+import { CircleAlert, LoaderCircle } from "lucide-react";
 
-import { LogoMark } from "@/components/brand/logo";
+import { CheckPageShell } from "@/components/check/page-shell";
 import { CheckReportView } from "@/components/check/report-view";
 import { RefreshWhilePending } from "@/components/check/refresh-while-pending";
-import { Container } from "@/components/ui/section";
+import { requeueIfStale, runPaidCheck } from "@/lib/check/purchase";
 import { getIdeaCheckForViewer } from "@/lib/check/store";
 import { site } from "@/lib/site";
+
+/** A stuck check restarted from this page runs after the response. */
+export const maxDuration = 300;
 
 export const metadata: Metadata = {
   title: "Your idea check",
@@ -68,6 +70,25 @@ async function Report({ params, searchParams }: PageProps) {
     );
   }
 
+  // Recovery: if the webhook's run never started or was killed, the owner
+  // opening the report restarts it (atomic claims prevent double runs).
+  if (check.status === "queued" || check.status === "running") {
+    const stuck = { ...check };
+    after(async () => {
+      try {
+        if (await requeueIfStale(stuck)) {
+          await runPaidCheck({ checkId: stuck.id, token });
+        }
+      } catch (error) {
+        console.error(
+          "[check] restart from report page failed",
+          { checkId: stuck.id },
+          error,
+        );
+      }
+    });
+  }
+
   const awaitingPayment = check.status === "pending_payment";
   return (
     <div className="border-line bg-surface flex flex-col gap-3 rounded-2xl border p-6">
@@ -93,35 +114,18 @@ async function Report({ params, searchParams }: PageProps) {
 
 export default function CheckPage(props: PageProps) {
   return (
-    <main className="bg-canvas flex min-h-svh flex-col">
-      <Container className="max-w-3xl py-10 md:py-14">
-        <div className="mb-10 flex items-center justify-between gap-4">
-          <Link
-            href="/"
-            className="font-heading text-ink flex items-center gap-2 font-semibold tracking-tight"
-          >
-            <LogoMark className="text-brand size-7" />
-            {site.name}
-          </Link>
-          <Link
-            href="/#subscribe"
-            className="text-ink-muted hover:text-ink inline-flex items-center gap-1.5 text-sm transition-colors"
-          >
-            <ArrowLeft className="size-4" aria-hidden="true" />
-            Get the free weekly
-          </Link>
-        </div>
-
-        <Suspense fallback={<ReportSkeleton />}>
-          <Report {...props} />
-        </Suspense>
-
-        <p className="text-ink-faint border-line mt-14 border-t pt-6 text-xs leading-relaxed">
+    <CheckPageShell
+      footnote={
+        <>
           This link is private — anyone with it can read this report. Quotes are
           copied verbatim from public posts and link to the original. This
           report is research, not business, legal or financial advice.
-        </p>
-      </Container>
-    </main>
+        </>
+      }
+    >
+      <Suspense fallback={<ReportSkeleton />}>
+        <Report {...props} />
+      </Suspense>
+    </CheckPageShell>
   );
 }

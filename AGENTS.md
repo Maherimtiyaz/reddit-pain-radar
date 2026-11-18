@@ -287,6 +287,14 @@ LLM: `lib/llm/client.ts` — any OpenAI-compatible chat API in JSON mode via fet
 
 CLI: `npm run check:idea -- "idea" [--save] [--email x] [--json]` runs a real check (needs an LLM key; `--save` also needs the DB and prints the private link).
 
+### Selling a check ($9, `lib/check/purchase.ts`)
+
+- **Availability** (`lib/check/availability.ts`, env-only): open when `STRIPE_SECRET_KEY` + `STRIPE_PRICE_CHECK` + an LLM key are set. The landing (hero note, pricing card, FAQ) and `/check` switch between "launching soon" and open. These pages are static → **redeploy after changing those env vars**.
+- **Order:** `/check` → `lib/actions/check.ts#startCheckAction` (per-IP 5/10 min, `normalizeIdea`, email check) → `startCheckCheckout`: insert `pending_payment` row, create a `mode: "payment"` Checkout Session (`allow_promotion_codes`, `metadata = { kind: "idea_check", ideaCheckId, t: token }`, success → the private report URL), store the session id. A failed Stripe call deletes the row. Stripe's cancel URL is `/check?canceled=1` (read client-side via `useSyncExternalStore`).
+- **Webhook:** `checkout.session.completed` / `async_payment_succeeded` with `metadata.kind === "idea_check"` → `markCheckPaid`: atomic `pending_payment → queued` matching id **and** session id; `paid` and `no_payment_required` (100%-off code) count as paid. The route schedules `runPaidCheck` with `after()` (`maxDuration = 300`) and logs `loggableOutcome` (never the token). The token from metadata is verified against the stored hash before it is emailed.
+- **Delivery:** `lib/email/check-ready.ts` (Resend; logged without a key — link only in development).
+- **Recovery:** the report page restarts a stale check via `after()` (`requeueIfStale`: queued > 60 s or running > 10 min); `npm run check:resume` does the same for all stuck rows and recovers the token from the Stripe session. Atomic claims make every path safe to repeat.
+
 ## Backend API (v1)
 
 JSON route handlers under `app/api/v1/**`. They are part of the backend only — no additional **marketing** pages are added (see Do NOT).

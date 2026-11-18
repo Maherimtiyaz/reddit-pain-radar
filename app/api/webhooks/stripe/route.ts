@@ -1,8 +1,20 @@
+import { after } from "next/server";
 import type Stripe from "stripe";
 
 import { apiError, json } from "@/lib/api/http";
+import { runPaidCheck } from "@/lib/check/purchase";
 import { getStripe, isStripeConfigured } from "@/lib/stripe/client";
-import { handleStripeEvent, recordStripeEvent } from "@/lib/stripe/webhook";
+import {
+  handleStripeEvent,
+  loggableOutcome,
+  recordStripeEvent,
+} from "@/lib/stripe/webhook";
+
+/**
+ * A paid Check My Idea runs after the response (via `after`), which is bounded
+ * by this route's max duration. Research takes 1–3 minutes.
+ */
+export const maxDuration = 300;
 
 /**
  * Stripe billing webhook.
@@ -10,7 +22,9 @@ import { handleStripeEvent, recordStripeEvent } from "@/lib/stripe/webhook";
  * Authenticity comes from the `Stripe-Signature` header (verified with
  * `STRIPE_WEBHOOK_SECRET`), not an API key. Configure these events on the
  * Stripe endpoint:
- * - checkout.session.completed   -> provision org + API key + welcome email
+ * - checkout.session.completed   -> provision org + API key + welcome email,
+ *                                   or (metadata.kind=idea_check) queue a paid check
+ * - checkout.session.async_payment_succeeded -> queue a check paid by a delayed method
  * - customer.subscription.updated -> sync plan (incl. dunning downgrades)
  * - customer.subscription.deleted -> downgrade to trial
  * - invoice.payment_failed       -> audit log entry
@@ -59,8 +73,23 @@ export async function POST(req: Request): Promise<Response> {
       type: event.type,
       eventId: event.id,
       firstDelivery,
-      outcome,
+      outcome: loggableOutcome(outcome),
     });
+    if (outcome.status === "check_queued") {
+      const paid = outcome.paid;
+      after(async () => {
+        try {
+          await runPaidCheck(paid);
+        } catch (error) {
+          // The row stays queued; the report page / check:resume restart it.
+          console.error(
+            "[check] paid run crashed",
+            { checkId: paid.checkId },
+            error,
+          );
+        }
+      });
+    }
     return json({ received: true });
   } catch (error) {
     // Not recorded and not 2xx — Stripe will retry the same event.
