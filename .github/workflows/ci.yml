@@ -17,7 +17,7 @@ env:
 
 jobs:
   verify:
-    name: Typecheck, lint, format, build
+    name: Typecheck, test, lint, format, build
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -44,6 +44,8 @@ jobs:
       - run: npx next typegen
 
       - run: npm run typecheck
+
+      - run: npm test
 
       - run: npm run lint
 

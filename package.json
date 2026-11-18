@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
+    "test": "tsx --test 'tests/**/*.test.ts'",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "db:generate": "drizzle-kit generate",
@@ -22,7 +23,8 @@
     "db:ingest": "tsx scripts/ingest-evidence.ts",
     "evidence:sync": "tsx scripts/sync-evidence.ts",
     "api:smoke": "tsx scripts/api-smoke.ts",
-    "stripe:smoke": "tsx scripts/stripe-webhook-smoke.ts"
+    "stripe:smoke": "tsx scripts/stripe-webhook-smoke.ts",
+    "evidence:smoke": "tsx scripts/evidence-smoke.ts"
   },
   "dependencies": {
     "class-variance-authority": "^0.7.1",

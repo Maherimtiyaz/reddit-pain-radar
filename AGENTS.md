@@ -54,6 +54,8 @@ npm install         # install dependencies
 npm run dev         # dev server (localhost:3000; start with PORT=3100 for auth testing)
 npm run start        # serve the production build
 npm run typecheck   # tsc --noEmit
+npm test            # unit tests (tests/**/*.test.ts, node:test via tsx)
+npm run evidence:smoke # live HN + GitHub source check (network)
 npm run lint        # eslint
 npm run format      # prettier --write .
 npm run format:check
@@ -76,9 +78,9 @@ npm run stripe:smoke # end-to-end billing webhook test (server must run with the
 vercel --prod       # deploy (out of scope unless asked)
 ```
 
-**There is no test suite and no CI** (no `npm test`, no `.github/`, no pre-commit hooks). `typecheck` + `lint` + `build` are the only automated checks. `scripts/api-smoke.ts` (`npm run api:smoke`) is a manual end-to-end check of the v1 API; it needs `npm run db:reset` and a running server.
+**Tests:** `npm test` runs `tests/**/*.test.ts` with Node's built-in test runner via `tsx --test` (no extra dependencies; `@/` imports work). Tests must not hit the network — inject `fetchImpl`/`sleep` (see `lib/evidence/http.ts`). **CI** (`.github/workflows/ci.yml`) runs typecheck, test, lint, format check and build on every PR. `scripts/api-smoke.ts` (`npm run api:smoke`) is a manual end-to-end check of the v1 API; it needs `npm run db:reset` and a running server.
 
-**Always run `npm run typecheck` and `npm run lint` (then `npm run build`) before declaring a task complete.**
+**Always run `npm run typecheck`, `npm test` and `npm run lint` (then `npm run build`) before declaring a task complete.**
 
 To verify a single component in isolation, run `npm run dev` and check `localhost:3000` (or `localhost:3100` when started with `PORT=3100`); there is no per-file test or typecheck shortcut.
 
@@ -250,6 +252,19 @@ schema (Drizzle here, Alembic there).
 - `workers/requirements.txt` pins `requests` and `psycopg[binary]`; there is no `pyproject.toml`/lockfile. Both scripts honor `LOG_LEVEL`.
 - **Evidence bridge (worker → app):** the worker owns ingestion in its **own database** (Alembic schema; table names collide with the app's Drizzle schema by design, so the two DBs must never be merged). Evidence crosses the seam as a versioned file, not a shared connection: `uv run radar export --out ../data/evidence.jsonl` (worker DB → `rpr-evidence/v1` JSONL; unthemed signals dropped), then `npm run db:ingest -- data/evidence.jsonl` (file → `raw_posts`/`pain_signals`, idempotent: posts upsert by `reddit_id` keeping row UUIDs, signals no-op against the dedupe index). `scripts/seed_evidence.py` (worker) + the importer cover the whole loop locally without Reddit/DeepSeek keys — see the README's "Feeding the app" section.
 - **Bridge automation:** `npm run evidence:sync` (`scripts/sync-evidence.ts`) is the cron entry point: `radar fetch` (warn-and-continue on failure) → `radar export` → in-process import via `scripts/lib/evidence.ts`. It **strips the app's `DATABASE_URL` from the worker subprocess env** — the worker's Settings prefer process env over its `.env`, and leaking the app's URL would make it query the app schema (shared table names, different columns). `--skip-fetch` / `EVIDENCE_SKIP_FETCH=1` skip stage 1. `npm run db:reset` wipes the whole Postgres volume, worker DB included: restore it with `uv run alembic upgrade head` + `seed_evidence.py`.
+
+## Evidence layer (PainProof sources)
+
+`lib/evidence/` fetches public evidence at request time (no Python worker needed; runs on Vercel):
+
+- `types.ts` — the normalized `Evidence` shape every source returns (`id` = `${source}:${externalId}`, verbatim `text`, `url` to the original, engagement numbers).
+- `hackernews.ts` — Algolia HN search (`comment` / `story` / `show_hn` / `ask_hn`, `sinceDays`, relevance or date sort). No key.
+- `github.ts` — GitHub issue search (sorted by 👍, `label`, `minReactions`, `sinceDays`). Caller text is stripped of `key:value` qualifiers. Optional `GITHUB_TOKEN`; a 401 falls back to unauthenticated.
+- `http.ts` — `fetchJson`: `cache: "no-store"`, per-attempt timeout, bounded retry on 429/5xx/network errors honouring `Retry-After`.
+- `pain.ts` — regex prefilter for pain + willingness-to-pay phrases and verbatim quote extraction (quotes are always exact substrings).
+- `collect.ts` — `collectEvidence(searches)` runs searches with per-source concurrency (HN 4, GitHub 2), de-dupes, and records per-search errors instead of throwing. `selectPainful` keeps items with pain phrases plus their quotes.
+
+Rules: only sources with public APIs; never scrape; every quote shown to a user must keep its `url`. The regex prefilter is a hint, not a gate — on real data most relevant comments contain no stock pain phrase, so relevance/pain judgement belongs to the LLM step.
 
 ## Backend API (v1)
 
