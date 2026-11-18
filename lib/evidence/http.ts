@@ -12,6 +12,9 @@ export class SourceHttpError extends Error {
 }
 
 export type FetchJsonOptions = {
+  /** Defaults to GET. A `body` is sent as JSON. */
+  method?: "GET" | "POST";
+  body?: unknown;
   headers?: Record<string, string>;
   /** Per-attempt timeout. */
   timeoutMs?: number;
@@ -51,7 +54,7 @@ export function retryAfterMs(header: string | null, attempt: number): number {
 }
 
 /**
- * GET a JSON document from a public source API.
+ * Request a JSON document (GET by default; POST with a JSON `body`).
  *
  * Always bypasses the Next.js data cache (`no-store`): evidence must be fresh,
  * and the callers are request-time code. Retries 429/5xx and network errors
@@ -62,6 +65,8 @@ export async function fetchJson(
   options: FetchJsonOptions = {},
 ): Promise<unknown> {
   const {
+    method = "GET",
+    body,
     headers = {},
     timeoutMs = DEFAULT_TIMEOUT_MS,
     retries = 1,
@@ -75,12 +80,14 @@ export async function fetchJson(
     let response: Response;
     try {
       response = await fetchImpl(url, {
-        method: "GET",
+        method,
         headers: {
           "User-Agent": USER_AGENT,
           Accept: "application/json",
+          ...(body === undefined ? {} : { "Content-Type": "application/json" }),
           ...headers,
         },
+        body: body === undefined ? undefined : JSON.stringify(body),
         cache: "no-store",
         signal: AbortSignal.timeout(timeoutMs),
       });
