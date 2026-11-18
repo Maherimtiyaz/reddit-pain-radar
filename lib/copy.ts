@@ -1,217 +1,220 @@
+/**
+ * All marketing copy. Rule: every claim here must be true today, or be
+ * labelled as coming soon. No invented testimonials, counts, logos or scarcity.
+ */
+
 export const announcement =
-  "Early access — first 10 customers get 50% off for life";
+  "New: PainProof Weekly — real problems worth building, with proof. Free, every Tuesday.";
 
 export const hero = {
-  eyebrow: "Now accepting early access",
-  headline: "Mine Reddit for the problems worth solving.",
+  eyebrow: "For first-time founders and indie hackers",
+  headlineLead: "Build what people",
+  headlineAccent: "already want.",
   subheadline:
-    "Reddit Pain Radar scans the subreddits your customers live in, scores every complaint by urgency and willingness to pay, and hands you a build-ready opportunity report.",
+    "PainProof reads public conversations on Hacker News and GitHub, finds the problems people keep complaining about, and shows you the proof — before you spend months building.",
   bullets: [
-    "Scan 10 subreddits in under 5 minutes",
-    "Every signal scored, quoted, and ranked",
-    "Markdown reports you can act on today",
+    "Every pain linked to the original post",
+    "An honest verdict: build, niche down, or skip",
+    "Free weekly newsletter — no card needed",
   ],
-  ctaPrimary: "Start for $29/mo",
-  ctaSecondary: "See how it works",
-  waitlist: "247 founders already on the waitlist",
+  ctaPrimary: "Get the free weekly",
+  ctaSecondary: "See a sample idea check",
+  note: "Check My Idea ($9 per report) launches soon. Subscribers get first access.",
 } as const;
 
-export const socialProof = {
-  label: "Trusted by founders from",
-  logos: [
-    "Indie Hackers",
-    "Product Hunt",
-    "Hacker News",
-    "MicroConf",
-    "Starter Story",
-    "Founders Network",
-    "On Deck",
-    "TinySeed",
+export const sources = {
+  label: "Where the evidence comes from",
+  items: [
+    { name: "Hacker News", status: "live" },
+    { name: "GitHub Issues", status: "live" },
+    { name: "App Store reviews", status: "soon" },
   ],
+  footnote:
+    "Every quote links to its source. Nothing is paraphrased or invented.",
 } as const;
 
 export const howItWorks = {
-  title: "Three steps. Five minutes. One clear decision.",
+  title: "From “is this a good idea?” to a clear answer",
   subtitle:
-    "No dashboards to learn. No data pipeline to maintain. Point it at a community and read the report.",
+    "No dashboards to learn. Describe the idea, read the verdict, decide.",
   steps: [
     {
-      title: "Connect subreddits",
+      title: "Describe your idea",
       description:
-        "Pick the communities where your customers complain. Paste a list or let us suggest the busiest ones for your niche.",
+        "One sentence: who it's for and what it does. That's all we need to start searching.",
     },
     {
-      title: "AI scans and scores",
+      title: "We search real conversations",
       description:
-        "Every post is analyzed for urgency, frequency, and willingness to pay, then clustered into recurring pain themes.",
+        "Hacker News threads and GitHub issues where people describe the problem, ask for a tool, or complain about the ones they pay for.",
     },
     {
-      title: "Get your report",
+      title: "Get a verdict with proof",
       description:
-        "One markdown report with themes, verbatim quotes, and a build recommendation you can paste into your roadmap.",
+        "Build it, niche down, or skip — with a PainProof Score, linked quotes, the competitors, and one 48-hour test to run next.",
     },
   ],
 } as const;
 
 export const features = {
-  title: "From raw complaints to a ranked build list",
+  title: "Proof, not vibes",
   subtitle:
-    "Everything you need to decide what to build next — without a single spreadsheet.",
+    "Everything a first-time founder needs to decide whether an idea is worth months of their life.",
+  scoreChips: [
+    { label: "Demand", value: "8", tone: "brand" },
+    { label: "WTP", value: "9", tone: "signal" },
+    { label: "Open", value: "3", tone: "urgency" },
+    { label: "Ease", value: "6", tone: "brand" },
+  ],
   items: [
     {
-      title: "Pain Signal Score",
+      title: "PainProof Score",
       description:
-        "Every theme gets a 0–100 score blending urgency, frequency, and willingness to pay so you can rank opportunities at a glance.",
+        "One 0–100 number from four signals: demand, willingness to pay, how open the market is, and how easy a first version is for one person. You see every part, not just the total.",
     },
     {
-      title: "Verbatim Evidence",
+      title: "Linked evidence",
       description:
-        "Each theme ships with the exact quotes and thread links behind it. No paraphrasing, no invented demand.",
+        "Each claim comes with the real quote and a link to where it was said. Click through and check it yourself.",
     },
     {
-      title: "Urgency Ranking",
+      title: "Competitor map",
       description:
-        "Complaints are ordered by how badly people want them solved right now — not by how loud the subreddit is.",
+        "Who already solves this, and where people say they fall short.",
     },
     {
-      title: "API Access",
+      title: "Your 48-hour test",
       description:
-        "Pull scored signals into your own tools, dashboards, or AI agents with a clean JSON API.",
+        "One concrete next step to prove demand before you write code.",
     },
   ],
 } as const;
 
 export const demo = {
-  eyebrow: "Live sample report",
-  title: "This is what lands in your inbox",
+  eyebrow: "Real sample check",
+  title: "A real check, built from real comments",
   subtitle:
-    "A real report shape, with animated scores. Every number links back to the posts that produced it.",
-  theme: "Quote-to-Cash Automation for Roofers",
-  score: 87,
+    "We checked the idea “recover failed Stripe payments for small SaaS” against Hacker News. This is what came back.",
+  theme: "Failed-payment recovery for small SaaS",
+  verdict: "Niche down",
+  score: 68,
   quote:
-    "I wish there was a tool that just told me what problems people are complaining about this week.",
-  quoteAuthor: "u/founder_42",
+    "Stripe's built-in dunning emails have a pretty low recovery rate (most customers ignore them).",
+  quoteAuthor: "Hacker News, January 2026",
+  quoteUrl: "https://news.ycombinator.com/item?id=46752629",
   metrics: [
-    { label: "Urgency", value: 9, tone: "urgency" as const },
-    { label: "Willingness to pay", value: 8, tone: "signal" as const },
+    { label: "Demand", value: 8, tone: "urgency" as const },
+    { label: "Willingness to pay", value: 9, tone: "signal" as const },
   ],
   signals: [
-    { label: "Urgency", value: 90 },
-    { label: "Frequency", value: 84 },
-    { label: "Willingness to pay", value: 80 },
-    { label: "Competition gap", value: 72 },
-    { label: "Rising trend", value: 65 },
+    { label: "Demand", value: 80 },
+    { label: "Willingness to pay", value: 90 },
+    { label: "Competition openness", value: 30 },
+    { label: "Ease of MVP", value: 60 },
   ],
   recommendation:
-    "Build a single-purpose quote-to-cash tool for roofing contractors. Urgency is high, incumbents are generic, and buyers already pay for adjacent scheduling software.",
-  cta: "Generate your first report free",
-} as const;
-
-export const testimonials = {
-  title: "Founders stopped guessing",
-  subtitle:
-    "Early users replaced weeks of manual subreddit reading with a five-minute report.",
-  items: [
-    {
-      quote:
-        "I cancelled three features from my roadmap after one report. The urgency scores were brutal — and correct.",
-      name: "Maya Chen",
-      role: "Founder",
-      company: "Ledgerly",
-      rating: 5,
-    },
-    {
-      quote:
-        "The verbatim quotes are the killer feature. I forwarded the report to my cofounder and we picked a direction the same day.",
-      name: "Daniel Okafor",
-      role: "Co-founder",
-      company: "Fieldnote",
-      rating: 5,
-    },
-    {
-      quote:
-        "It's like having a full-time analyst reading Reddit for me. I found a niche with real willingness to pay in my second report.",
-      name: "Priya Raman",
-      role: "Solo founder",
-      company: "Quietstack",
-      rating: 5,
-    },
-  ],
+    "The pain is real and costly, but the generic tool is crowded: Stripe's own retries plus several dedicated startups. Pick one vertical — gyms, studios, tutors — where owners don't know what “dunning” means and need it done for them.",
+  cta: "Get the free weekly",
 } as const;
 
 export const pricing = {
-  title: "One plan. Everything included.",
-  subtitle:
-    "Early access pricing, locked in for life for the first 10 customers.",
-  tier: {
-    name: "Early Access",
-    price: 29,
-    period: "/month",
-    tagline: "For solo founders and small product teams.",
-    features: [
-      "3 scored reports per month",
-      "Up to 10 subreddits per report",
-      "Verbatim evidence with post links",
-      "Markdown export",
-      "Email delivery",
-    ],
-    cta: "Start for $29/mo",
-    note: "First 10 customers get 50% off for life. 3 spots left.",
-  },
+  title: "Start free. Pay only when you have an idea to check.",
+  subtitle: "No subscription needed to get value from PainProof.",
+  tiers: [
+    {
+      name: "PainProof Weekly",
+      price: "Free",
+      period: "",
+      tagline: "The newsletter. Every Tuesday.",
+      badge: null,
+      features: [
+        "5–7 real pains of the week",
+        "Linked proof for every pain",
+        "A build idea and verdict for each",
+        "One tool or research trick per issue",
+      ],
+      cta: "Subscribe free",
+      href: "#subscribe",
+      highlight: false,
+    },
+    {
+      name: "Check My Idea",
+      price: "$9",
+      period: "/report",
+      tagline: "Your idea, checked against real evidence.",
+      badge: "Launching soon",
+      features: [
+        "Verdict: build, niche down, or skip",
+        "PainProof Score with the full breakdown",
+        "Linked quotes from Hacker News and GitHub",
+        "Competitors and their weak spots",
+        "Your 48-hour validation test",
+      ],
+      cta: "Get early access",
+      href: "?ref=check-my-idea#subscribe",
+      highlight: true,
+    },
+  ],
 } as const;
 
 export const faq = {
   title: "Questions, answered",
   items: [
     {
-      q: "How does Reddit Pain Radar find pain signals?",
-      a: "We scan the subreddits you choose, read every post and comment in the window you select, and cluster recurring complaints into themes. Each theme is scored on urgency, frequency, and willingness to pay, then backed by the verbatim quotes that produced it.",
+      q: "What is PainProof?",
+      a: "A free weekly newsletter of real problems worth building, plus a paid report that checks your own idea against real evidence. Both are for people building their first product who want proof before they commit months to it.",
     },
     {
-      q: "Do I need a Reddit account or API key?",
-      a: "No. You point us at community names and we handle the rest. You never have to touch Reddit's API, rate limits, or scraping infrastructure.",
+      q: "Where does the evidence come from?",
+      a: "Public posts on Hacker News and issues on GitHub today, with app store reviews next. Every quote links to the original so you can check it yourself. We never invent quotes or sources.",
     },
     {
-      q: "How is the Pain Signal Score calculated?",
-      a: "The score blends four inputs: how urgently people describe the problem, how often it recurs, whether commenters mention paying for a fix, and how poorly existing tools address it. You see the full breakdown, not just the headline number.",
+      q: "Do you collect data from Reddit, X or LinkedIn?",
+      a: "Our software doesn't. In the newsletter we sometimes link to a public post we've read ourselves, quoting a short line with credit and a link to the original.",
     },
     {
-      q: "What format is the report delivered in?",
-      a: "Every report is delivered as a clean markdown file by email, with themes, scores, quotes, thread links, and a build recommendation. You can also export it from the dashboard at any time.",
+      q: "How is the PainProof Score calculated?",
+      a: "Score = (Demand × 0.30 + Willingness to pay × 0.30 + Competition openness × 0.25 + Ease of MVP × 0.15) × 10. 75 and above means build it, 55–74 means niche down, below 55 means skip or rethink.",
     },
     {
-      q: "Can I cancel anytime?",
-      a: "Yes. Early access is month-to-month with no contract, and you can cancel from your billing page in one click. The 50% lifetime discount stays if you keep your subscription active.",
+      q: "What if my idea gets a “skip”?",
+      a: "That's the most valuable answer we can give: it saves you months. The report still shows which nearby angles look stronger.",
+    },
+    {
+      q: "When does Check My Idea launch?",
+      a: "Soon. Newsletter subscribers hear first. The newsletter is free, and every issue has an unsubscribe link.",
     },
   ],
 } as const;
 
 export const finalCta = {
-  headline: "Stop guessing. Start building what people actually need.",
-  subtitle: "Join the early access list and get your first scored report free.",
-  inputPlaceholder: "you@company.com",
-  button: "Get Early Access",
-  success: "You're on the list. Check your inbox for your first report.",
-  trust: "No spam. Unsubscribe anytime.",
+  badge: "Free every Tuesday",
+  headline: "Get 5–7 problems worth building, every week.",
+  subtitle:
+    "Real pains from real people, each with linked proof and a build idea. Free.",
+  inputPlaceholder: "you@example.com",
+  button: "Subscribe free",
+  success: "You're in. The next issue lands on Tuesday.",
+  trust: "No spam. Unsubscribe in one click.",
 } as const;
 
 export const checkoutSuccess = {
   title: "Payment received",
-  body: "Your API key is on its way to your inbox — usually under a minute.",
+  body: "Check your inbox for the next steps — usually under a minute.",
   help: "Nothing after a few minutes? Check spam, or email",
   dismiss: "Dismiss",
 } as const;
 
 export const footer = {
-  tagline: "Scored pain-point reports mined from Reddit communities.",
+  tagline: "Problems worth building, with proof.",
   columns: [
     {
       title: "Product",
       links: [
         { label: "How it works", href: "#how-it-works" },
-        { label: "Features", href: "#features" },
+        { label: "Sample check", href: "#sample" },
         { label: "Pricing", href: "#pricing" },
-        { label: "Sample report", href: "#demo" },
+        { label: "Weekly newsletter", href: "#subscribe" },
       ],
     },
     {
@@ -219,7 +222,6 @@ export const footer = {
       links: [
         { label: "FAQ", href: "#faq" },
         { label: "Sign in", href: "/login" },
-        { label: "Contact", href: "#waitlist" },
       ],
     },
     {
@@ -230,10 +232,5 @@ export const footer = {
       ],
     },
   ],
-  social: [
-    { label: "Twitter", href: "https://twitter.com" },
-    { label: "GitHub", href: "https://github.com" },
-    { label: "LinkedIn", href: "https://linkedin.com" },
-  ],
-  copyright: `© ${new Date().getFullYear()} Reddit Pain Radar. All rights reserved.`,
+  copyright: `© ${new Date().getFullYear()} PainProof. All rights reserved.`,
 } as const;

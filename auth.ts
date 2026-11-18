@@ -27,8 +27,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   },
   providers: [
     Resend({
-      from:
-        process.env.EMAIL_FROM ?? "Reddit Pain Radar <onboarding@resend.dev>",
+      from: process.env.EMAIL_FROM ?? "PainProof <onboarding@resend.dev>",
       apiKey: process.env.RESEND_API_KEY,
       // Replace the provider's Resend call so local development can log the
       // link instead of sending it (matching the other transactional email).

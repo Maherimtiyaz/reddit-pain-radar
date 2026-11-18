@@ -10,36 +10,41 @@ import { site } from "@/lib/site";
 export const metadata: Metadata = {
   title: "Privacy Policy",
   description:
-    "What Reddit Pain Radar collects, why it collects it, who processes it, and how to have it deleted.",
+    "What PainProof collects, why it collects it, who processes it, and how to have it deleted.",
   alternates: { canonical: "/privacy" },
 };
 
-const UPDATED = "October 27, 2026";
+const UPDATED = "November 18, 2026";
 
 export default function PrivacyPage() {
   return (
     <LegalPage title="Privacy Policy" updated={UPDATED}>
       <p>
         This policy explains what {site.name} collects, why, and what you can do
-        about it. It covers the landing page, the account area, the JSON API,
-        and the reports we generate.
+        about it. It covers the website, the newsletter, the account area, the
+        JSON API, and the reports we generate.
       </p>
 
       <LegalSection heading="What we collect">
-        <p>We collect four kinds of information:</p>
+        <p>We collect five kinds of information:</p>
         <LegalList
           items={[
+            <>
+              <strong className="text-ink">Newsletter subscription.</strong>{" "}
+              Your email address, when you subscribe to PainProof Weekly, and
+              where you signed up from, so we can send the newsletter.
+            </>,
             <>
               <strong className="text-ink">Account details.</strong> Your email
               address, which is how you sign in (we email a one-time link), and
               the workspace name and plan attached to your account.
             </>,
             <>
-              <strong className="text-ink">Workspace data.</strong> The
-              subreddits and keyword sets you track, the reports generated for
-              you, and the API keys you create. We store only a SHA-256 hash of
-              each API key — the key itself is shown to you once and never
-              again.
+              <strong className="text-ink">Workspace data.</strong> The ideas
+              you submit for checking, the topics you track, the reports
+              generated for you, and the API keys you create. We store only a
+              SHA-256 hash of each API key — the key itself is shown to you once
+              and never again.
             </>,
             <>
               <strong className="text-ink">Billing details.</strong> Payments
@@ -48,10 +53,11 @@ export default function PrivacyPage() {
               We never see or store your card number.
             </>,
             <>
-              <strong className="text-ink">Public Reddit content.</strong> We
-              ingest publicly available posts and comments from the communities
-              you track, including post text and the author&apos;s public
-              username, so we can quote the evidence behind a pain signal.
+              <strong className="text-ink">Public posts.</strong> We read
+              publicly available posts and comments from Hacker News and public
+              GitHub issues, including the text, a link to the original, and the
+              author&apos;s public username, so we can quote and link the
+              evidence behind a pain signal.
             </>,
           ]}
         />
@@ -67,6 +73,7 @@ export default function PrivacyPage() {
         <LegalList
           items={[
             "To provide the service: score pain signals, generate reports, and return them through the app or API.",
+            "To send the newsletter you subscribed to.",
             "To operate your account: send one-time sign-in links, deliver your API key after purchase, and enforce plan limits.",
             "To bill you, through Stripe.",
             "To prevent abuse, such as bulk sign-in attempts and runaway report generation.",
@@ -88,15 +95,20 @@ export default function PrivacyPage() {
             </>,
             <>
               <strong className="text-ink">Resend</strong> — delivery of
-              transactional email (sign-in links, welcome messages).
+              transactional email (sign-in links, welcome messages, reports).
             </>,
             <>
-              <strong className="text-ink">Reddit</strong> — the source of the
-              public posts we analyse, accessed through Reddit&apos;s API.
+              <strong className="text-ink">
+                Hacker News (via Algolia) and GitHub
+              </strong>{" "}
+              — the sources of the public posts we analyse, accessed through
+              their public APIs. We send them search terms, not your personal
+              data.
             </>,
             <>
               <strong className="text-ink">DeepSeek</strong> — the language
-              model used to extract and score pain signals from post text.
+              model used to extract and score pain signals from post text and
+              your idea description.
             </>,
             <>
               <strong className="text-ink">Vercel and our database host</strong>{" "}
@@ -120,7 +132,8 @@ export default function PrivacyPage() {
           items={[
             "Account and workspace data is kept while your account is active, and for a short period afterwards in case you return.",
             "Sign-in tokens are single-use and are deleted as soon as they are used.",
-            "Ingested Reddit evidence is kept while it is still useful for reports.",
+            "Newsletter emails are kept until you unsubscribe.",
+            "Collected public evidence is kept while it is still useful for reports.",
             "Billing records are kept as long as tax law requires.",
           ]}
         />

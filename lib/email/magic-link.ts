@@ -46,13 +46,12 @@ export async function sendMagicLinkEmail(
   }
 
   resend ??= new Resend(apiKey);
-  const from =
-    process.env.EMAIL_FROM ?? "Reddit Pain Radar <onboarding@resend.dev>";
+  const from = process.env.EMAIL_FROM ?? "PainProof <onboarding@resend.dev>";
 
   const { data, error } = await resend.emails.send({
     from,
     to: input.to,
-    subject: "Sign in to Reddit Pain Radar",
+    subject: "Sign in to PainProof",
     text: magicLinkText(input),
     html: magicLinkHtml(input),
   });
@@ -72,7 +71,7 @@ export async function sendMagicLinkEmail(
 
 function magicLinkText({ url }: MagicLinkEmailInput): string {
   return [
-    "Sign in to Reddit Pain Radar",
+    "Sign in to PainProof",
     "",
     "Use the link below to sign in to your dashboard. It expires in 1 hour",
     "and can only be used once.",
@@ -90,7 +89,7 @@ function magicLinkHtml({ url }: MagicLinkEmailInput): string {
 <html>
   <body style="margin:0;padding:32px;background:#0a0a0a;color:#fafafa;font-family:Geist,-apple-system,Segoe UI,Roboto,sans-serif;line-height:1.6">
     <div style="max-width:520px;margin:0 auto">
-      <p style="font-size:13px;letter-spacing:0.08em;text-transform:uppercase;color:#818cf8;font-weight:600">Reddit Pain Radar</p>
+      <p style="font-size:13px;letter-spacing:0.08em;text-transform:uppercase;color:#818cf8;font-weight:600">PainProof</p>
       <h1 style="font-size:22px;margin:8px 0 16px">Sign in to your dashboard</h1>
       <p style="color:#a1a1aa;margin:0 0 24px">Use the button below to sign in. This link expires in 1 hour and can only be used once.</p>
       <a href="${escapeHtml(url)}" style="display:inline-block;background:#6366f1;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 20px;border-radius:8px">Sign in</a>

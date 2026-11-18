@@ -27,7 +27,8 @@ export const metadata: Metadata = {
   description: site.description,
   applicationName: site.name,
   keywords: [
-    "Reddit research",
+    "idea validation",
+    "startup idea newsletter",
     "pain point analysis",
     "product validation",
     "startup ideas",

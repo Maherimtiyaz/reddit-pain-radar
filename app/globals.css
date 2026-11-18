@@ -21,7 +21,6 @@
   --color-ink-muted: #a1a1aa;
   --color-ink-faint: #82828b;
 
-  --animate-marquee: marquee 32s linear infinite;
   --animate-aurora: aurora 60s linear infinite;
   --animate-float: float 6s ease-in-out infinite;
   --animate-float-slow: float 9s ease-in-out infinite;
@@ -146,15 +145,6 @@
 /* ------------------------------------------------------------------ */
 /* Keyframes                                                           */
 /* ------------------------------------------------------------------ */
-@keyframes marquee {
-  from {
-    transform: translateX(0);
-  }
-  to {
-    transform: translateX(-50%);
-  }
-}
-
 @keyframes aurora {
   from {
     background-position:

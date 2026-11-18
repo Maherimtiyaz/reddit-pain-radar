@@ -12,15 +12,21 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 ## Project Identity
 
-Single-page landing page for **Reddit Pain Radar** — a SaaS that scans Reddit communities, scores pain signals by urgency and monetization potential, and delivers actionable product opportunity reports to solo founders, indie hackers, and product teams.
+**PainProof** — "problems worth building, with proof." For first-time founders and indie hackers. Three layers:
 
-The page has one job: **convert visitors into early-access signups at $29/month**. Every section must earn its place. No filler.
+1. **PainProof Weekly** — free newsletter of real pains, each with linked proof (audience).
+2. **Check My Idea** — $9 one-off report: an idea checked against real evidence, with a verdict (build / niche down / skip) and a PainProof Score (revenue). _Launching soon._
+3. **PainProof Pro** — $19/mo subscription (later).
+
+Evidence comes from sources with public APIs (Hacker News, GitHub; app reviews next). The product's software must **not** collect data from Reddit, X or LinkedIn. The repo is mid-migration from "Reddit Pain Radar": the backend (`/api/v1`, Python workers, `subreddits` tables) is still Reddit-shaped until the migration phases replace it — see `painproof/README.md` for the plan.
+
+The landing page has one job: **turn visitors into newsletter subscribers** (and Check My Idea buyers once it launches). Every claim must be true today or labelled "soon" — **no invented testimonials, counts, logos or scarcity**.
 
 Behind it: a small authenticated account area (`/login` magic link → `/dashboard`) where customers see their workspace, plan/quota, reports, tracked subreddits, and API keys.
 
 ## Tech Stack (as built)
 
-- **Framework:** Next.js **16.4.3** (App Router, Turbopack) + TypeScript (strict). `cacheComponents` and `partialPrefetching` are enabled in `next.config.ts`.
+- **Framework:** Next.js **16.4.6** (App Router, Turbopack) + TypeScript (strict). `cacheComponents` and `partialPrefetching` are enabled in `next.config.ts`.
 - **React:** 19.3.0.
 - **Styling:** Tailwind CSS v4 (CSS-first `@theme` in `app/globals.css`).
 - **Animation:** `motion` (v14, imported from `motion/react`) — **not** `framer-motion`.
@@ -136,14 +142,13 @@ auth.ts                  # NextAuth config: adapter, Resend provider, session ca
 /components
   /sections              # one file per section (kebab-case)
     announcement-bar.tsx  navbar.tsx        hero.tsx
-    social-proof.tsx      how-it-works.tsx  features.tsx
-    demo-report.tsx       testimonials.tsx  pricing.tsx
-    faq.tsx               final-cta.tsx     footer.tsx
+    sources.tsx           how-it-works.tsx  features.tsx
+    demo-report.tsx       pricing.tsx       faq.tsx
+    final-cta.tsx         footer.tsx
     checkout-success.tsx   # ?checkout=success post-purchase banner
   /ui                    # shadcn primitives + hand-built effects
     button.tsx input.tsx accordion.tsx
     spotlight.tsx aurora-background.tsx bento-grid.tsx
-    animated-testimonials.tsx marquee.tsx
     reveal.tsx count-up.tsx section.tsx
   /providers
     motion-provider.tsx  # MotionConfig reducedMotion="user"
@@ -331,8 +336,8 @@ All animation uses `motion` (`motion/react`). Presets live in `lib/motion.ts`; p
 
 ## Environment Variables
 
-- `NEXT_PUBLIC_STRIPE_PAYMENT_LINK` — CTA target. If unset, CTAs fall back to `#waitlist` (the email-capture section).
-- `NEXT_PUBLIC_SITE_URL` — canonical origin for metadata/sitemap (defaults to `https://redditpainradar.com`).
+- `NEXT_PUBLIC_STRIPE_PAYMENT_LINK` — fallback for `GET /api/checkout`. If unset, it falls back to `#subscribe` (the newsletter signup).
+- `NEXT_PUBLIC_SITE_URL` — canonical origin for metadata/sitemap (defaults to `https://painproof.co`).
 - `DATABASE_URL` — PostgreSQL connection string for Drizzle (`db/`). Required by `db:*` scripts and runtime queries.
 - `DATABASE_ADMIN_URL` — optional privileged (table-owning) connection used by `db/admin.ts` for signup provisioning and API-key→org lookup. Falls back to `DATABASE_URL` when unset (fine locally; on a hardened deploy the app role should be non-owner so RLS applies to normal traffic).
 - `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` — required by the billing webhook (`app/api/webhooks/stripe`); the route answers `503` until both are set.
@@ -347,7 +352,7 @@ The Python workers read additional server-only vars (never exposed to the client
 
 ## Anchor IDs
 
-`#top` (hero), `#how-it-works`, `#features`, `#demo`, `#testimonials`, `#pricing`, `#faq`, `#waitlist`. `section[id]` has `scroll-margin-top: 5rem` for the sticky navbar.
+`#top` (hero), `#how-it-works`, `#features`, `#sample` (real sample check), `#pricing`, `#faq`, `#subscribe` (newsletter signup; stored in the `waitlist` table with `source`, e.g. `newsletter` or `check-my-idea` from `?ref=`). `section[id]` has `scroll-margin-top: 5rem` for the sticky navbar.
 
 ## Do NOT
 

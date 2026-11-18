@@ -10,13 +10,13 @@ import { site } from "@/lib/site";
  *
  *   configured (STRIPE_SECRET_KEY + STRIPE_PRICE_STARTER)
  *     -> 302 to a subscription Checkout Session
- *   otherwise -> 302 to the legacy payment link, else the waitlist anchor.
+ *   otherwise -> 302 to the legacy payment link, else the #subscribe newsletter signup.
  *
  * The session carries `metadata.plan = "starter"`, which is exactly what the
  * provisioning webhook (`checkout.session.completed`) reads, so a purchase
  * through this path provisions the org + first API key like a payment-link
  * purchase does. Failures degrade the same way as an unconfigured install:
- * the error is logged server-side and the visitor lands on the waitlist
+ * the error is logged server-side and the visitor lands on the newsletter signup
  * instead of a dead end.
  *
  * Rate-limited per IP (in-memory, best-effort — see lib/rate-limit.ts) so
@@ -45,7 +45,7 @@ export async function GET(request: Request): Promise<Response> {
     "",
   );
   const origin = configuredOrigin || new URL("/", request.url).origin;
-  const fallback = site.stripePaymentLink || `${origin}/#waitlist`;
+  const fallback = site.stripePaymentLink || `${origin}/#subscribe`;
 
   const ip =
     request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
