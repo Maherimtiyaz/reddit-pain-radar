@@ -1,0 +1,84 @@
+name: PainProof cron
+
+# Monday: draft this week's PainProof Weekly issue (saved as a draft and
+# emailed to WEEKLY_EDITOR_EMAIL; publish it yourself after review).
+# Hourly: restart any paid Check My Idea run that got stuck.
+
+on:
+  schedule:
+    - cron: "17 6 * * 1" # Mondays 06:17 UTC: weekly draft
+    - cron: "23 * * * *" # hourly: resume stuck checks
+  workflow_dispatch:
+    inputs:
+      job:
+        description: Which job to run
+        type: choice
+        options: [weekly-draft, check-resume]
+        default: weekly-draft
+
+concurrency:
+  group: painproof-cron-${{ github.event.schedule || inputs.job }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  NEXT_TELEMETRY_DISABLED: "1"
+  DATABASE_URL: ${{ secrets.APP_DATABASE_URL }}
+  DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+  DEEPSEEK_BASE_URL: ${{ vars.DEEPSEEK_BASE_URL || 'https://api.deepseek.com/v1' }}
+  DEEPSEEK_MODEL: ${{ vars.DEEPSEEK_MODEL || 'deepseek-chat' }}
+  RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+  EMAIL_FROM: ${{ vars.EMAIL_FROM }}
+  NEXT_PUBLIC_SITE_URL: ${{ vars.NEXT_PUBLIC_SITE_URL }}
+  # The workflow's own token raises GitHub search limits for evidence collection.
+  GITHUB_TOKEN: ${{ github.token }}
+
+jobs:
+  weekly-draft:
+    if: github.event.schedule == '17 6 * * 1' || inputs.job == 'weekly-draft'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      WEEKLY_EDITOR_EMAIL: ${{ secrets.WEEKLY_EDITOR_EMAIL }}
+      STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+      STRIPE_PRICE_CHECK: ${{ vars.STRIPE_PRICE_CHECK }}
+    steps:
+      - name: Check required secrets
+        run: |
+          missing=""
+          for name in DATABASE_URL DEEPSEEK_API_KEY; do
+            if [ -z "${!name}" ]; then missing="$missing $name"; fi
+          done
+          if [ -n "$missing" ]; then echo "::error::Missing:$missing (APP_DATABASE_URL / DEEPSEEK_API_KEY secrets)"; exit 1; fi
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run weekly:draft
+
+  check-resume:
+    if: github.event.schedule == '23 * * * *' || inputs.job == 'check-resume'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+    steps:
+      - name: Skip when not configured
+        id: guard
+        run: |
+          if [ -z "$DATABASE_URL" ]; then echo "skip=true" >> "$GITHUB_OUTPUT"; echo "APP_DATABASE_URL not set; nothing to resume."; fi
+      - uses: actions/checkout@v7
+        if: steps.guard.outputs.skip != 'true'
+      - uses: actions/setup-node@v7
+        if: steps.guard.outputs.skip != 'true'
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+        if: steps.guard.outputs.skip != 'true'
+      - run: npm run check:resume
+        if: steps.guard.outputs.skip != 'true'

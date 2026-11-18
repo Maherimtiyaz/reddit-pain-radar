@@ -57,6 +57,8 @@ npm run typecheck   # tsc --noEmit
 npm test            # unit tests (tests/**/*.test.ts, node:test via tsx)
 npm run evidence:smoke # live HN + GitHub source check (network)
 npm run check:idea -- "idea" # run a Check My Idea report (needs an LLM key)
+npm run weekly:draft  # draft this week's PainProof Weekly (DB + LLM)
+npm run weekly:publish -- <slug> [--drop 3,5] # publish a draft to /weekly
 npm run lint        # eslint
 npm run format      # prettier --write .
 npm run format:check
@@ -229,7 +231,7 @@ schema (Drizzle here, Alembic there).
 ## Database (Drizzle ORM v1 RC + node-postgres)
 
 - **Single schema file:** `db/schema.ts` (`drizzle.config.ts` points at it). All column names are written **explicitly in `snake_case`** with camelCase JS keys — drizzle-kit v1 has no top-level `casing` option, so do not rely on it.
-- **15 tables:** `idea_checks` (PainProof, global, see "Check My Idea engine"), `users`, `accounts`, `sessions`, `verification_tokens`, `orgs`, `memberships`, `subreddits`, `keyword_sets`, `raw_posts`, `pain_signals`, `reports`, `api_keys`, `stripe_events`, `waitlist`. Enums: `role` (`owner|admin|member`), `plan` (`trial|starter|pro`), `report_status` (`queued|running|complete|failed`). The four auth tables are global (no RLS).
+- **16 tables:** `idea_checks` and `weekly_issues` (PainProof, global), `users`, `accounts`, `sessions`, `verification_tokens`, `orgs`, `memberships`, `subreddits`, `keyword_sets`, `raw_posts`, `pain_signals`, `reports`, `api_keys`, `stripe_events`, `waitlist`. Enums: `role` (`owner|admin|member`), `plan` (`trial|starter|pro`), `report_status` (`queued|running|complete|failed`). The four auth tables are global (no RLS).
 - **PKs:** `uuid().defaultRandom()`. Scores are `real`. `reports.subreddit_ids` is `uuid[]`. `keyword_sets.keywords` is `jsonb string[]`.
 - **Auth columns:** `users.email_verified` is added for the adapter; `users.image` maps to the pre-existing `avatar_url` column (no rename migration). `accounts`, `sessions`, and `verification_tokens` follow Auth.js's model (`sessions.session_token` is the PK; `verification_tokens` is keyed by `(identifier, token)`). New signups store a lowercased email, and both the adapter and `createOrgWithOwner` match emails case-insensitively so Stripe-provisioned users are reused rather than duplicated.
 - **Dedupe:** `pain_signals` has a unique index on `(raw_post_id, theme, md5(verbatim_quote))` so re-running extraction never duplicates signals (the quote is hashed to stay within the btree index-tuple limit).
@@ -294,6 +296,17 @@ CLI: `npm run check:idea -- "idea" [--save] [--email x] [--json]` runs a real ch
 - **Webhook:** `checkout.session.completed` / `async_payment_succeeded` with `metadata.kind === "idea_check"` → `markCheckPaid`: atomic `pending_payment → queued` matching id **and** session id; `paid` and `no_payment_required` (100%-off code) count as paid. The route schedules `runPaidCheck` with `after()` (`maxDuration = 300`) and logs `loggableOutcome` (never the token). The token from metadata is verified against the stored hash before it is emailed.
 - **Delivery:** `lib/email/check-ready.ts` (Resend; logged without a key — link only in development).
 - **Recovery:** the report page restarts a stale check via `after()` (`requeueIfStale`: queued > 60 s or running > 10 min); `npm run check:resume` does the same for all stuck rows and recovers the token from the Stripe session. Atomic claims make every path safe to repeat.
+
+## PainProof Weekly (`lib/weekly/`)
+
+The app **writes and archives** the newsletter; a newsletter tool (Beehiiv/Kit) **sends** it (unsubscribe compliance and deliverability stay there).
+
+- `generate.ts#generateWeeklyIssue` — collects the past 7 days (HN comments matching `WEEKLY_PHRASES`, Ask HN threads with ≥15 comments, open GitHub `enhancement` issues with ≥30 👍 from the last 45 days), keeps pain-phrase comments + all threads/issues ranked by engagement (≤60, labelled `E1..En`), and asks the model for 5–7 pains. `validateIssue` keeps a pain only with ≥1 verified verbatim quote (`verifyQuote`), one source never backs two pains, the verdict must be build/niche_down/skip, and the engagement line ("179 points · 92 comments") is computed by us. Fewer than 3 pains → `NotEnoughMaterialError`, no draft. Slug = the Monday (UTC) of the run; `weekStart` = 7 days earlier.
+- `store.ts` — `weekly_issues` (global): `saveDraft` upserts but **never overwrites a published issue**; `publishIssue(slug, { drop })`; `listPublishedIssues`; `getPublishedIssue`.
+- `render.ts` — markdown to paste into the newsletter tool (CTA: `/check` when sales are open, otherwise "reply with your idea").
+- Commands: `npm run weekly:draft` (saves draft, writes `data/weekly/<slug>.md`, emails `WEEKLY_EDITOR_EMAIL`), `npm run weekly:publish -- <slug> [--drop 3,5]`.
+- Pages: `/weekly` (archive) and `/weekly/[slug]` — static shell + `<Suspense>` + `connection()`; `generateMetadata` reads the issue (streams with the deferred content). The sitemap lists published issues and survives a DB outage.
+- Cron: `.github/workflows/painproof-cron.yml` — Mondays 06:17 UTC `weekly:draft`; hourly `check:resume`. Secrets `APP_DATABASE_URL`, `DEEPSEEK_API_KEY`, `RESEND_API_KEY`, `WEEKLY_EDITOR_EMAIL`, `STRIPE_SECRET_KEY`; variables `NEXT_PUBLIC_SITE_URL`, `EMAIL_FROM`, `STRIPE_PRICE_CHECK`. The workflow's own `github.token` is used for GitHub search.
 
 ## Backend API (v1)
 
@@ -403,7 +416,7 @@ The Python workers read additional server-only vars (never exposed to the client
 - Use light mode or a theme toggle.
 - Use `dark:` Tailwind variants.
 - Use generic placeholder images — use SVG/CSS mockups, gradients, or the hand-built effect components.
-- Add **marketing pages** beyond the single landing page (no `/blog`, `/docs`, `/pricing`). App routes (`/login`, `/dashboard/**`, `/privacy`, `/terms`) and backend JSON route handlers under `app/api/**` are expected and OK.
+- Add **marketing pages** beyond the single landing page (no `/blog`, `/docs`, `/pricing`). Product routes (`/check`, `/check/[id]`, `/weekly`, `/weekly/[slug]`), app routes (`/login`, `/dashboard/**`, `/privacy`, `/terms`) and backend JSON route handlers under `app/api/**` are expected and OK.
 - Pull in UI libraries beyond shadcn/ui + hand-built Aceternity-style patterns.
 - Add unnecessary dependencies.
 - Write CSS outside Tailwind classes (except `@theme` tokens/keyframes in `globals.css`).
