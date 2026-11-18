@@ -72,13 +72,15 @@ and get a lawyer's opinion before you scale.
 
 Product Hunt and Show HN come **after** you have real users and real testimonials.
 
-## What the existing code gives you (from the audit)
+## What's built (status)
 
-About 80% of the Reddit Pain Radar code carries over: Stripe checkout and webhook,
-login, dashboard, API keys, the pain detector, LLM scoring, clustering and the
-report renderer. The new work is source adapters (HN, GitHub, app reviews), renaming
-the Reddit-named database columns, and a web form for "Check my idea". Don't start
-that until week 1 says yes.
+All three layers are implemented in this repo (see the root README):
+
+- **Check My Idea**: `/check` order page, $9 Stripe Checkout, the verified-evidence engine, private report links, email delivery, recovery of stuck runs.
+- **PainProof Weekly**: Monday drafts from live Hacker News + GitHub evidence, emailed to you for review, published to `/weekly`.
+- **PainProof Pro**: $19/month subscription, dashboard checks and history, niche-watch digests, Stripe billing portal, and an API.
+
+Week 1 is still worth doing by hand. `npm run check:idea -- "idea"` now produces the reports for you; the conversations are the part that validates demand.
 
 ## Files in this folder
 

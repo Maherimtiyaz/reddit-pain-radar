@@ -27,7 +27,7 @@ jobs:
       DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/ci
       AUTH_SECRET: ci-build-secret-not-used-for-sessions
       AUTH_URL: http://localhost:3000
-      NEXT_PUBLIC_SITE_URL: https://redditpainradar.com
+      NEXT_PUBLIC_SITE_URL: https://painproof.co
 
     steps:
       - uses: actions/checkout@v7
