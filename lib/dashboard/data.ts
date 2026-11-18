@@ -2,25 +2,13 @@ import { redirect } from "next/navigation";
 import { connection } from "next/server";
 
 import { auth } from "@/auth";
-import {
-  countReportsSince,
-  findOrgForUser,
-  getReport,
-  listApiKeys,
-  listKeywordSets,
-  listReports,
-  listSubreddits,
-} from "@/db/queries";
-import type { Membership } from "@/db/schema";
+import { findOrgForUser } from "@/db/queries";
 import {
   checkQuota,
   effectivePlan,
   hasProAccess,
-  reportQuota,
   startOfUtcMonth,
-  TRIAL_DAYS,
   watchTopicLimit,
-  type EffectivePlan,
 } from "@/lib/billing/limits";
 import {
   countOrgChecksSince,
@@ -34,8 +22,6 @@ import { listWatchTopics } from "@/lib/watch/store";
  * session (server actions and pages can be hit directly), then resolves the
  * tenant from the user's membership.
  */
-
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 export type DashboardUser = {
   id: string;
@@ -60,70 +46,6 @@ export async function requireDashboardUser(): Promise<DashboardUser> {
     email: user.email,
     image: user.image ?? null,
   };
-}
-
-export async function getDashboardData() {
-  const user = await requireDashboardUser();
-  const membership = await findOrgForUser(user.id);
-
-  if (!membership) {
-    return {
-      user,
-      membership: null,
-      plan: null as EffectivePlan | null,
-      quota: 0,
-      used: 0,
-      trialEndsAt: null as Date | null,
-      trialDaysLeft: null as number | null,
-      subreddits: [],
-      keywordSets: [],
-      apiKeys: [],
-      reports: [],
-    };
-  }
-
-  const { org } = membership;
-  const plan = effectivePlan(org);
-  const quota = reportQuota(plan);
-  const trialEndsAt =
-    org.plan === "trial"
-      ? new Date(org.createdAt.getTime() + TRIAL_DAYS * DAY_MS)
-      : null;
-  const trialDaysLeft =
-    trialEndsAt === null
-      ? null
-      : Math.max(0, Math.ceil((trialEndsAt.getTime() - Date.now()) / DAY_MS));
-
-  const [used, subreddits, keywordSets, apiKeys, reports] = await Promise.all([
-    countReportsSince(org.id, startOfUtcMonth()),
-    listSubreddits(org.id),
-    listKeywordSets(org.id),
-    listApiKeys(org.id),
-    listReports(org.id, 8),
-  ]);
-
-  return {
-    user,
-    membership: membership as { org: typeof org; role: Membership["role"] },
-    plan,
-    quota,
-    used,
-    trialEndsAt,
-    trialDaysLeft,
-    subreddits,
-    keywordSets,
-    apiKeys,
-    reports,
-  };
-}
-
-/** Loads one report for the signed-in user's org, or `null` if not theirs. */
-export async function getDashboardReport(reportId: string) {
-  const user = await requireDashboardUser();
-  const membership = await findOrgForUser(user.id);
-  if (!membership) return null;
-
-  return getReport(membership.org.id, reportId);
 }
 
 /* ------------------------------------------------------------------ */

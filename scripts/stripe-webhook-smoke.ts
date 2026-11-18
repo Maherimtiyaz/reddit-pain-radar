@@ -329,7 +329,7 @@ async function post(
 
 async function main(): Promise<void> {
   const suffix = Date.now();
-  const email = `smoke+${suffix}@redditpainradar.test`;
+  const email = `smoke+${suffix}@painproof.test`;
   const customerId = `cus_smoke_${suffix}`;
 
   console.log(`\nStripe webhook smoke test against ${BASE_URL}\n`);

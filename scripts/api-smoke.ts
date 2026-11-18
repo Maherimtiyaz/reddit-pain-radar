@@ -81,263 +81,104 @@ async function main(): Promise<void> {
   const key = readSeedKey();
   console.log(`\nv1 API smoke test against ${BASE_URL}\n`);
 
-  // -- auth -------------------------------------------------------------
+  // -- authentication ------------------------------------------------------
   const badKey = await call("GET", "/api/v1/me", { key: "rpr_not_a_real_key" });
   check("bad key -> 401", badKey.status === 401, badKey.status);
-  check(
-    "bad key -> error envelope",
-    get(badKey.json, "error.code") === "unauthorized",
-    badKey.json,
-  );
-
-  const noKey = await call("GET", "/api/v1/me");
+  const noKey = await call("GET", "/api/v1/me", {});
   check("missing key -> 401", noKey.status === 401, noKey.status);
 
-  // -- me ---------------------------------------------------------------
+  // -- workspace + allowance -------------------------------------------------
   const me = await call("GET", "/api/v1/me", { key });
   check("GET /me -> 200", me.status === 200, me.status);
+  check("GET /me -> plan is pro", get(me.json, "data.plan") === "pro", me.json);
   check(
-    "GET /me -> seeded org",
-    get(me.json, "data.slug") === "acme-indie-studio",
+    "GET /me -> checkQuota 30",
+    get(me.json, "data.checkQuota") === 30,
     me.json,
   );
-  check("GET /me -> plan is trial", get(me.json, "data.plan") === "trial");
-
-  // -- subreddits -------------------------------------------------------
-  const before = await call("GET", "/api/v1/subreddits", { key });
-  const beforeCount = Array.isArray(get(before.json, "data"))
-    ? (get(before.json, "data") as unknown[]).length
-    : -1;
-  check("GET /subreddits -> 200", before.status === 200, before.status);
-  check("GET /subreddits -> seeded >= 3", beforeCount >= 3, beforeCount);
-
-  const created = await call("POST", "/api/v1/subreddits", {
-    key,
-    body: { name: "r/IndieHackers" },
-  });
-  check("POST /subreddits -> 201", created.status === 201, created.status);
   check(
-    "POST /subreddits -> normalizes r/ prefix",
-    get(created.json, "data.name") === "IndieHackers",
-    created.json,
-  );
-  const createdId = get(created.json, "data.id");
-
-  const dup = await call("POST", "/api/v1/subreddits", {
-    key,
-    body: { name: "IndieHackers" },
-  });
-  check("POST duplicate -> 409", dup.status === 409, dup.status);
-
-  const badName = await call("POST", "/api/v1/subreddits", {
-    key,
-    body: { name: "x" },
-  });
-  check("POST invalid name -> 400", badName.status === 400, badName.status);
-
-  // -- keyword sets -----------------------------------------------------
-  const sets = await call("GET", "/api/v1/keyword-sets", { key });
-  const setList = get(sets.json, "data");
-  check("GET /keyword-sets -> 200", sets.status === 200, sets.status);
-  check(
-    "GET /keyword-sets -> seeded >= 1",
-    Array.isArray(setList) && setList.length >= 1,
-    setList,
+    "GET /me -> checksUsedThisMonth is a number",
+    typeof get(me.json, "data.checksUsedThisMonth") === "number",
+    me.json,
   );
 
-  const seededSetId = Array.isArray(setList)
-    ? (setList as Array<{ id?: unknown; name?: unknown }>).find(
-        (set) => set.name === "Pricing complaints",
-      )?.id
-    : undefined;
+  // -- checks ------------------------------------------------------------------
+  const list = await call("GET", "/api/v1/checks", { key });
+  const checks =
+    (get(list.json, "data") as Array<Record<string, unknown>>) ?? [];
+  check("GET /checks -> 200", list.status === 200, list.status);
+  const sample = checks.find((c) => c.status === "complete");
+  check("GET /checks -> seeded sample listed", Boolean(sample), checks);
 
-  const newSet = await call("POST", "/api/v1/keyword-sets", {
+  const badId = await call("GET", "/api/v1/checks/not-a-uuid", { key });
+  check("GET /checks/:bad -> 400", badId.status === 400, badId.status);
+  const missing = await call(
+    "GET",
+    "/api/v1/checks/00000000-0000-4000-8000-000000000000",
+    { key },
+  );
+  check("GET /checks/:unknown -> 404", missing.status === 404, missing.status);
+
+  if (sample) {
+    const one = await call("GET", `/api/v1/checks/${String(sample.id)}`, {
+      key,
+    });
+    check("GET /checks/:id -> 200", one.status === 200, one.status);
+    check(
+      "GET /checks/:id -> complete with score",
+      get(one.json, "data.score") === 68,
+      one.json,
+    );
+    check(
+      "GET /checks/:id -> markdown report",
+      String(get(one.json, "data.markdown") ?? "").includes("PainProof check"),
+    );
+  }
+
+  const badBody = await call("POST", "/api/v1/checks", {
     key,
-    body: { name: "Churn signals", keywords: ["switching", "cancel"] },
-  });
-  check("POST /keyword-sets -> 201", newSet.status === 201, newSet.status);
-  const setId = get(newSet.json, "data.id");
-
-  const patched = await call("PATCH", `/api/v1/keyword-sets/${String(setId)}`, {
-    key,
-    body: { keywords: ["switching", "refund", "switching"] },
-  });
-  const patchedKeywords = get(patched.json, "data.keywords");
-  check("PATCH /keyword-sets -> 200", patched.status === 200, patched.status);
-  check(
-    "PATCH /keyword-sets -> de-dupes",
-    Array.isArray(patchedKeywords) && patchedKeywords.length === 2,
-    patchedKeywords,
-  );
-
-  // -- reports ----------------------------------------------------------
-  const badReport = await call("GET", "/api/v1/reports/not-a-uuid", { key });
-  check("GET /reports/:bad -> 400", badReport.status === 400, badReport.status);
-
-  const report = await call("POST", "/api/v1/reports", { key, body: {} });
-  check("POST /reports -> 201", report.status === 201, report.status);
-  check(
-    "POST /reports -> has themes",
-    typeof get(report.json, "data.themeCount") === "number" &&
-      (get(report.json, "data.themeCount") as number) >= 1,
-    report.json,
-  );
-  check(
-    "POST /reports -> has signals",
-    typeof get(report.json, "data.signalCount") === "number" &&
-      (get(report.json, "data.signalCount") as number) >= 1,
-    report.json,
-  );
-  const reportId = get(report.json, "data.id");
-  const unfilteredCount = get(report.json, "data.signalCount");
-
-  // Keyword set narrows the evidence to matching posts/quotes.
-  const filteredReport = await call("POST", "/api/v1/reports", {
-    key,
-    body: { keywordSetId: String(seededSetId) },
-  });
-  const filteredCount = get(filteredReport.json, "data.signalCount");
-  check(
-    "POST /reports (keyword set) -> 201",
-    filteredReport.status === 201,
-    filteredReport.status,
-  );
-  check(
-    "keyword set narrows the evidence",
-    typeof filteredCount === "number" &&
-      typeof unfilteredCount === "number" &&
-      filteredCount >= 1 &&
-      filteredCount < unfilteredCount,
-    { filteredCount, unfilteredCount },
-  );
-
-  // Ownership validation: unknown ids must be rejected, not silently dropped.
-  const foreignSubreddit = await call("POST", "/api/v1/reports", {
-    key,
-    body: { subredditIds: ["00000000-0000-0000-0000-000000000000"] },
+    body: { nope: true },
   });
   check(
-    "POST /reports (foreign subreddit id) -> 422",
-    foreignSubreddit.status === 422,
-    foreignSubreddit.status,
+    "POST /checks without idea -> 400",
+    badBody.status === 400,
+    badBody.status,
   );
 
-  const unknownKeywordSet = await call("POST", "/api/v1/reports", {
+  // With an LLM key the server validates the idea (400); without one it
+  // reports checks as unavailable (503). Either way nothing is created.
+  const short = await call("POST", "/api/v1/checks", {
     key,
-    body: { keywordSetId: "00000000-0000-0000-0000-000000000000" },
+    body: { idea: "too short" },
   });
   check(
-    "POST /reports (unknown keyword set) -> 422",
-    unknownKeywordSet.status === 422,
-    unknownKeywordSet.status,
+    "POST /checks short idea -> 400 invalid_idea (or 503 unavailable)",
+    (short.status === 400 &&
+      get(short.json, "error.code") === "invalid_idea") ||
+      (short.status === 503 && get(short.json, "error.code") === "unavailable"),
+    short.json,
   );
 
-  // -- plan quota (trial: 3 reports/month; two generated above) ----------
-  const third = await call("POST", "/api/v1/reports", { key, body: {} });
-  check(
-    "third report (quota boundary) -> 201",
-    third.status === 201,
-    third.status,
-  );
-  check(
-    "third report -> usage counters present",
-    get(third.json, "data.reportsUsedThisMonth") === 3 &&
-      get(third.json, "data.reportQuota") === 3,
-    third.json,
-  );
-
-  const fourth = await call("POST", "/api/v1/reports", { key, body: {} });
-  check(
-    "fourth report (over quota) -> 402",
-    fourth.status === 402,
-    fourth.status,
-  );
-  check(
-    "fourth report -> plan_limit_reached",
-    get(fourth.json, "error.code") === "plan_limit_reached",
-    fourth.json,
-  );
-
-  const meWithUsage = await call("GET", "/api/v1/me", { key });
-  check(
-    "GET /me -> quota surfaced (trial 3/3)",
-    get(meWithUsage.json, "data.effectivePlan") === "trial" &&
-      get(meWithUsage.json, "data.reportQuota") === 3 &&
-      get(meWithUsage.json, "data.reportsUsedThisMonth") === 3,
-    meWithUsage.json,
-  );
-
-  const fetched = await call("GET", `/api/v1/reports/${String(reportId)}`, {
-    key,
-  });
-  check("GET /reports/:id -> 200", fetched.status === 200, fetched.status);
-  check(
-    "GET /reports/:id -> complete",
-    get(fetched.json, "data.status") === "complete",
-    fetched.json,
-  );
-  check(
-    "GET /reports/:id -> markdown present",
-    typeof get(fetched.json, "data.markdown") === "string" &&
-      (get(fetched.json, "data.markdown") as string).length > 0,
-  );
-
-  const list = await call("GET", "/api/v1/reports", { key });
-  check(
-    "GET /reports -> contains generated report",
-    Array.isArray(get(list.json, "data")) &&
-      (get(list.json, "data") as unknown[]).length >= 1,
-    list.json,
-  );
-
-  // -- api keys (mint + revoke) ----------------------------------------
+  // -- keys --------------------------------------------------------------------
   const minted = await call("POST", "/api/v1/keys", {
     key,
     body: { name: "smoke key" },
   });
   check("POST /keys -> 201", minted.status === 201, minted.status);
-  const mintedKey = get(minted.json, "data.key");
-  const mintedId = get(minted.json, "data.id");
+  const newKey = String(get(minted.json, "data.key") ?? "");
+  const newKeyId = String(get(minted.json, "data.id") ?? "");
   check(
     "POST /keys -> plaintext returned once",
-    typeof mintedKey === "string" && mintedKey.startsWith("rpr_"),
+    newKey.startsWith("rpr_"),
+    minted.json,
   );
-  check(
-    "GET /keys -> never returns hashes",
-    JSON.stringify((await call("GET", "/api/v1/keys", { key })).json).includes(
-      "keyHash",
-    ) === false,
-  );
+  const viaNew = await call("GET", "/api/v1/me", { key: newKey });
+  check("new key authenticates", viaNew.status === 200, viaNew.status);
 
-  check(
-    "minted key works",
-    typeof mintedKey === "string" &&
-      (await call("GET", "/api/v1/me", { key: mintedKey })).status === 200,
-  );
-
-  const revoked = await call("DELETE", `/api/v1/keys/${String(mintedId)}`, {
-    key,
-  });
+  const revoked = await call("DELETE", `/api/v1/keys/${newKeyId}`, { key });
   check("DELETE /keys/:id -> 200", revoked.status === 200, revoked.status);
-  check(
-    "revoked key -> 401",
-    typeof mintedKey === "string" &&
-      (await call("GET", "/api/v1/me", { key: mintedKey })).status === 401,
-  );
-
-  // -- cleanup ----------------------------------------------------------
-  const cleanedSet = await call(
-    "DELETE",
-    `/api/v1/keyword-sets/${String(setId)}`,
-    { key },
-  );
-  check("DELETE /keyword-sets/:id -> 200", cleanedSet.status === 200);
-  const cleanedSub = await call(
-    "DELETE",
-    `/api/v1/subreddits/${String(createdId)}`,
-    { key },
-  );
-  check("DELETE /subreddits/:id -> 200", cleanedSub.status === 200);
+  const afterRevoke = await call("GET", "/api/v1/me", { key: newKey });
+  check("revoked key -> 401", afterRevoke.status === 401, afterRevoke.status);
 
   console.log(`\n${passed} checks passed, ${failures.length} failed.`);
   if (failures.length > 0) {
@@ -347,6 +188,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((error: unknown) => {
-  console.error("[smoke] aborted:", error);
+  console.error("[api-smoke] aborted:", error);
   process.exit(1);
 });

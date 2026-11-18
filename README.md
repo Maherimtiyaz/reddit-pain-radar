@@ -1,308 +1,125 @@
 # PainProof
 
-**Problems worth building, with proof.** A free weekly newsletter of real pains
-(each with linked evidence) and **Check My Idea**, a $9 report that checks a
-founder's idea against public conversations on Hacker News and GitHub. Built for
-first-time founders and indie hackers. See [`painproof/README.md`](painproof/README.md)
-for the business plan.
+**Problems worth building, with proof.** PainProof helps first-time founders
+and indie hackers find, and check, product ideas using real public evidence
+from Hacker News and GitHub. Every quote is verbatim and linked to its source.
 
-> **Migration in progress.** This repo started as "Reddit Pain Radar". The
-> landing page is PainProof; the backend sections below (v1 API, workers,
-> evidence bridge) still describe the Reddit-era pipeline until later phases
-> replace it.
+| Product              | What it is                                                               | Where                                                    |
+| -------------------- | ------------------------------------------------------------------------ | -------------------------------------------------------- |
+| **PainProof Weekly** | Free newsletter: 5–7 real pains of the week, each with linked proof      | Drafted by `npm run weekly:draft`, archived at `/weekly` |
+| **Check My Idea**    | $9 report: verdict, PainProof Score, quotes, competitors, a 48-hour test | `/check`                                                 |
+| **PainProof Pro**    | $19/month: 30 checks a month, report history, niche-watch alerts         | `/dashboard`                                             |
 
-Built with **Next.js 16 (App Router)** and **Tailwind CSS v4**, and animated with
-**motion** (`motion/react`). Effects are hand-built in `components/ui` (no external
-UI registries).
+The business plan, validation kit, newsletter playbook and sample reports are
+in [`painproof/`](painproof/README.md).
 
-## Getting Started
+Built with Next.js 16 (App Router, Cache Components), Tailwind CSS v4,
+`motion`, Drizzle ORM (Postgres with row-level security), Auth.js magic links,
+Stripe and Resend. Conventions for contributors and agents: [AGENTS.md](AGENTS.md).
+
+## Getting started
 
 ```bash
 npm install
-npm run dev
+npm run dev            # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
-
-To exercise the authenticated account area, run the local database harness and
-start the dev server on the port that matches `AUTH_URL` (3100 by default in
-`.env.example`):
+The landing page works with no configuration. For the database-backed parts,
+copy `.env.example` to `.env`, then:
 
 ```bash
-npm run db:up
-npm run db:reset        # applies migrations, seeds founder@redditpainradar.test
-$env:PORT=3100; npm run dev   # PowerShell
+npm run db:up          # Docker Postgres on :5434 with an owner + an app role (RLS enforced)
+npm run db:reset       # migrate + seed a Pro workspace, an API key and a sample check
+PORT=3100 npm run dev  # matches AUTH_URL=http://localhost:3100 for sign-in
 ```
 
-## Environment Variables
+Sign in at `/login` with `founder@painproof.test`. Without `RESEND_API_KEY`, the
+dev server log prints the magic link.
 
-Copy `.env.example` to `.env.local` and fill in as needed:
-
-| Variable                          | Purpose                                                                              |
-| --------------------------------- | ------------------------------------------------------------------------------------ |
-| `NEXT_PUBLIC_STRIPE_PAYMENT_LINK` | Checkout fallback. If unset, it falls back to `#subscribe`.                          |
-| `NEXT_PUBLIC_SITE_URL`            | Canonical origin for metadata/sitemap (default `https://painproof.co`).              |
-| `DATABASE_URL`                    | PostgreSQL connection string used by Drizzle ORM (`db/`).                            |
-| `DATABASE_ADMIN_URL`              | Optional privileged (RLS-bypassing) connection for signup + API-key lookup.          |
-| `STRIPE_SECRET_KEY`               | Stripe API key used by the billing webhook.                                          |
-| `STRIPE_WEBHOOK_SECRET`           | Signature secret for `POST /api/webhooks/stripe`.                                    |
-| `STRIPE_PRICE_STARTER` / `_PRO`   | Price ids mapped to plans; `_STARTER` powers `GET /api/checkout`.                    |
-| `RESEND_API_KEY`                  | Transactional email (welcome key, magic links). Unset → emails are logged, not sent. |
-| `EMAIL_FROM`                      | Optional Resend from-address (default `onboarding@resend.dev`).                      |
-| `AUTH_SECRET`                     | **Required at runtime** for Auth.js sessions and magic-link tokens.                  |
-| `AUTH_URL`                        | Canonical auth origin for magic-link callbacks (e.g. `http://localhost:3100`).       |
-
-## Scripts
+To run real checks, set `DEEPSEEK_API_KEY` (or `LLM_API_KEY` + `LLM_BASE_URL` +
+`LLM_MODEL` for any OpenAI-compatible provider):
 
 ```bash
-npm run dev          # dev server (localhost:3000)
-npm run build        # production build
-npm run start        # serve the production build
-npm run lint         # eslint
-npm run typecheck    # tsc --noEmit
-npm run format       # prettier --write .
-npm run format:check
-npm run db:generate  # generate SQL migrations from db/schema.ts
-npm run db:migrate   # apply pending migrations
-npm run db:push      # push schema directly (dev only)
-npm run db:studio    # Drizzle Studio
-npm run db:export:waitlist # waitlist -> CSV on stdout (`-- --out file.csv`)
-
-# local database harness (Docker)
-npm run db:up        # start Postgres on host port 5434 (two RLS roles)
-npm run db:down      # stop it
-npm run db:reset     # wipe -> migrate -> seed a fresh database
-npm run db:seed      # seed one tenant + evidence; prints an API key
-npm run api:smoke    # end-to-end v1 API smoke test (server must be running)
-npm run stripe:smoke # end-to-end billing webhook test (server + secret must match)
+npm run check:idea -- "Invoice reminders for freelance designers"   # prints the report
+npm run evidence:smoke -- "invoice reminders"                       # are HN/GitHub reachable?
 ```
 
-Always run `npm run typecheck`, `npm run lint`, and `npm run build` before shipping.
+## How it works
 
-## Check My Idea
+**Evidence** (`lib/evidence/`): Hacker News (Algolia search API) and GitHub
+issue search, fetched at request time, validated field by field, and
+normalized into one `Evidence` shape. PainProof never scrapes, and its
+software never collects from Reddit, X or LinkedIn.
 
-`lib/check/` checks one idea against public evidence (Hacker News + GitHub)
-and returns a verdict (build / niche down / skip / not enough evidence), a
-PainProof Score computed by our formula, verbatim linked quotes, competitors,
-angles and a 48-hour test. The model may only cite fetched items; quotes that
-are not verbatim are dropped. Reports are stored in `idea_checks` and read at
-`/check/[id]?t=<private token>`.
+**Check My Idea** (`lib/check/`):
 
-```bash
-npm run check:idea -- "Invoice reminders for freelance designers"          # print the report
-npm run check:idea -- "Invoice reminders for freelance designers" --save   # store it + print the private link
-npm run check:resume                                                         # restart stuck paid checks
+```
+idea → LLM plans short queries → collect HN comments, Show HN launches, GitHub issues
+     → LLM scores demand / willingness to pay / openness / ease, citing numbered items only
+     → our code keeps only verbatim quotes from items it marked relevant
+     → our code computes the score: (D×0.30 + W×0.30 + O×0.25 + E×0.15)×10
+       75+ build · 55–74 niche down · <55 skip · thin evidence → "not enough evidence"
 ```
 
-**Buying a check:** `/check` (form) → `startCheckAction` creates a
-`pending_payment` row and a $9 Stripe Checkout Session → the webhook flips it
-to `queued` exactly once (card, async payment, or 100%-off code) → the check
-runs via `after()` → the private link is emailed (Resend). `npm run
-stripe:smoke` covers the purchase states with signed synthetic events.
+**Buying a check:** `/check` → $9 Stripe Checkout (promotion codes allowed, so
+you can hand out 100%-off codes) → the webhook queues the check exactly once →
+it runs after the webhook responds → the private link `/check/[id]?t=…` is
+emailed. Stuck runs restart when the report is opened or via `npm run
+check:resume`.
 
-Needs `DEEPSEEK_API_KEY` (or `LLM_API_KEY` + `LLM_BASE_URL` + `LLM_MODEL` for
-any OpenAI-compatible provider). See AGENTS.md → "Check My Idea engine".
-
-## PainProof Weekly
-
-Every Monday `npm run weekly:draft` collects the past week's public pain
-signals (Hacker News comments and Ask HN threads, most-upvoted GitHub feature
-requests), has the model pick 5–7 pains with **verified verbatim quotes**,
-saves a draft and emails it to `WEEKLY_EDITOR_EMAIL`. Review it, paste the
-markdown into your newsletter tool (Beehiiv/Kit sends the email), then:
+**PainProof Weekly** (`lib/weekly/`): every Monday the cron collects the past
+week's pain-phrase HN comments, busy Ask HN threads and most-upvoted GitHub
+feature requests. The model picks 5–7 pains, every quote is verified, and a
+draft is saved and emailed to `WEEKLY_EDITOR_EMAIL`. You review it, paste the
+markdown into Beehiiv or Kit (they send it), then:
 
 ```bash
 npm run weekly:publish -- 2026-11-16            # publish to /weekly/2026-11-16
 npm run weekly:publish -- 2026-11-16 --drop 3,5 # drop pains 3 and 5 first
 ```
 
-`.github/workflows/painproof-cron.yml` runs the draft on Mondays and
-`check:resume` hourly, and sends niche-watch digests after the Monday draft.
-Add repository secrets `APP_DATABASE_URL`, `APP_DATABASE_ADMIN_URL` (owner
-role — the digest iterates every workspace),
-`DEEPSEEK_API_KEY`, `RESEND_API_KEY`, `WEEKLY_EDITOR_EMAIL`,
-`STRIPE_SECRET_KEY` and variables `NEXT_PUBLIC_SITE_URL`, `EMAIL_FROM`,
-`STRIPE_PRICE_CHECK`.
+**PainProof Pro** (`/dashboard`): run checks (30 per UTC month; failed runs
+don't count), see every report, watch up to 5 topics (a model-free Monday
+digest of new pain quotes, `npm run watch:digest`) and manage billing in
+Stripe's customer portal. Canceled subscriptions pause features but keep
+reports.
 
-## PainProof Pro ($19/month)
+**API** (`/api/v1`, `Authorization: Bearer <key>`): `GET /me`,
+`POST /checks` `{ idea }` → 202, `GET /checks`, `GET /checks/:id` (result +
+markdown when complete), `GET|POST /keys`, `DELETE /keys/:id`.
 
-`GET /api/checkout` sells the Pro subscription (`STRIPE_PRICE_PRO`,
-`metadata.plan=pro`). The webhook provisions the workspace and emails a
-welcome note pointing to `/login`; the customer signs in with the same email.
-
-The dashboard (`/dashboard`) gives Pro workspaces:
-
-- **30 idea checks a month** (calendar month, UTC; failed checks don't count),
-  run with `after()` and viewable at `/dashboard/checks/[id]` (workspace-scoped,
-  no token needed). The private-link email is sent too.
-- **Niche watch:** up to 5 topics; `npm run watch:digest` (Mondays in the
-  cron) emails new pain quotes per topic — no model, verbatim and linked.
-  Topics are marked sent only after the email is delivered.
-- **Manage billing:** Stripe's customer portal.
-
-Canceled or unpaid subscriptions fall back to `trial` (via the existing
-subscription webhooks): checks and niche watch pause, past reports stay.
-
-## Accounts & Sign-in
-
-Customers authenticate with an **email magic link** (Auth.js v5 + Resend,
-database sessions). There are no passwords and no OAuth providers.
-
-- The `/login` form submits the `requestMagicLink` server action (rate limited
-  per IP), which calls `signIn("resend")` and redirects to `?sent=1`.
-- The link lands on `/api/auth/callback/resend`, marks `users.email_verified`,
-  creates a `sessions` row, and sets the session cookie.
-- `/dashboard` and `/dashboard/reports/[id]` are protected in
-  `app/dashboard/layout.tsx` (no middleware — sessions live in Postgres). Signed-out
-  visitors are redirected to `/login`.
-- The dashboard is read-only: org, plan/quota, reports, tracked subreddits,
-  keyword sets, and API key metadata. Signing in never creates an org; a signed-in
-  user without one sees a checkout CTA. Orgs are provisioned by the Stripe webhook
-  and linked to the same user by email.
-- **Email reconciliation:** the adapter matches addresses case-insensitively and
-  stores new ones lowercased, so a customer provisioned by Stripe reuses that user
-  row on first sign-in.
-- **Adapter:** `lib/auth/adapter.ts` is hand-written over the Drizzle tables.
-  `@auth/drizzle-adapter@1.11` imports a runtime export (`PgDatabase`) that
-  drizzle-orm v1 RC renamed, so it cannot be bundled here.
-- **Without `RESEND_API_KEY`** the magic link is printed to the server log
-  (`[auth] RESEND_API_KEY not set — magic link logged`) instead of emailed, which
-  makes local sign-in testable offline.
-
-`AUTH_SECRET` is required at runtime (not at build time). `AUTH_URL` should match
-the origin the browser uses or the callback will be rejected.
-
-## Backend API
-
-JSON endpoints under `app/api/v1/**`, authenticated with `Authorization: Bearer <api-key>`.
-An API key maps to an org; only its SHA-256 hash is stored.
-
-| Method             | Route                      | Purpose                                          |
-| ------------------ | -------------------------- | ------------------------------------------------ |
-| `GET`              | `/api/v1/me`               | Org + plan limits (quota, usage) behind the key. |
-| `GET` / `POST`     | `/api/v1/reports`          | List reports / generate one from stored signals. |
-| `GET`              | `/api/v1/reports/:id`      | One report, including `markdown` + `json`.       |
-| `GET` / `POST`     | `/api/v1/subreddits`       | List / track a subreddit.                        |
-| `DELETE`           | `/api/v1/subreddits/:id`   | Stop tracking a subreddit.                       |
-| `GET` / `POST`     | `/api/v1/keyword-sets`     | List / create a keyword set.                     |
-| `PATCH` / `DELETE` | `/api/v1/keyword-sets/:id` | Replace keywords / delete the set.               |
-| `GET` / `POST`     | `/api/v1/keys`             | List / mint a key (plaintext returned once).     |
-| `DELETE`           | `/api/v1/keys/:id`         | Revoke a key.                                    |
-
-`POST /api/v1/reports` accepts `{ subredditIds?, keywordSetId?, title? }`; when
-`keywordSetId` is given, the evidence is restricted to signals matching that
-set's keywords.
-
-**Plan limits** (`lib/billing/limits.ts`) are enforced per calendar month
-(UTC), counting non-failed reports: **trial 3** (14 days from signup, then
-effectively 0 until checkout), **starter 50**, **pro 500**. Over-quota
-requests get `402 { error: { code: "plan_limit_reached" } }` (or
-`trial_expired`); `GET /api/v1/me` and every successful `POST /api/v1/reports`
-carry `reportQuota` / `reportsUsedThisMonth`, and `/me` also returns
-`effectivePlan` (trial expiry folded in).
-
-Report generation is synchronous: `lib/reports/service.ts` validates that the
-requested subreddits and keyword set belong to the org, reads the shared
-`pain_signals` for those subreddits (optionally narrowed by keyword — matched
-case-insensitively against the post title/body and the quote), ranks them into
-themes (`lib/reports/generate.ts`), and stores the markdown + JSON on the report
-row.
-
-### Self-serve checkout
-
-All landing CTAs are plain links to **`GET /api/checkout`**, which redirects
-into Stripe's hosted subscription Checkout when `STRIPE_SECRET_KEY` and
-`STRIPE_PRICE_STARTER` are set (with `metadata.plan = "starter"`, feeding the
-provisioning webhook below). Unconfigured installs — or a Stripe error —
-degrade to `NEXT_PUBLIC_STRIPE_PAYMENT_LINK`, then the on-page `#subscribe`,
-so a partially-configured deploy never shows a dead CTA. The endpoint is
-rate-limited per IP (10/min, in-memory). Success returns to
-`/?checkout=success`, where a dismissible banner
-(`components/sections/checkout-success.tsx`) confirms the API key email is
-on its way; cancel returns to `#pricing`.
-
-### Billing webhook
-
-`POST /api/webhooks/stripe` (unauthenticated — authenticity comes from the
-`Stripe-Signature` header verified with `STRIPE_WEBHOOK_SECRET`) turns a
-Stripe checkout into a live account:
-
-- `checkout.session.completed` — creates the org + owner, records the Stripe
-  customer, mints the first API key, and emails it via Resend (logged to the
-  server console when `RESEND_API_KEY` is unset). Redeliveries never mint a
-  second key.
-- `customer.subscription.updated` — syncs `orgs.plan`; non-active/unpaid
-  subscriptions fall back to `trial`.
-- `customer.subscription.deleted` — downgrades the org to `trial`.
-- `invoice.payment_failed` — audit log only (downgrades ride in on the
-  subscription event above).
-
-Every accepted event is recorded in `stripe_events` (unique
-`stripe_event_id`) for audit. `npm run stripe:smoke` exercises the whole
-flow offline by signing synthetic events.
-
-## Database
-
-The data layer lives in `db/` and uses **Drizzle ORM v1 (RC)** with
-**node-postgres**.
-
-- `db/schema.ts` — fourteen tables (`users`, `accounts`, `sessions`,
-  `verification_tokens`, `orgs`, `memberships`, `subreddits`,
-  `keyword_sets`, `raw_posts`, `pain_signals`, `reports`, `api_keys`,
-  `stripe_events`, `waitlist`), enums, indexes, relations, and the
-  `tenant_isolation` RLS policies. The four auth tables are global (no RLS).
-- `db/index.ts` — pooled `pg` client wrapped by `drizzle()` (+ relations).
-- `db/tenant.ts` — `withTenant(orgId, fn)` runs a transaction with
-  `app.current_org_id` set so Postgres RLS restricts every org-scoped query.
-- `db/admin.ts` — privileged (RLS-bypassing) client for signup provisioning and
-  API-key → org lookup, via `DATABASE_ADMIN_URL`.
-- `db/queries.ts` — the DAL (subreddits, keyword sets, reports, API keys, and the
-  shared-evidence reader `fetchSignalsForReport` used by report generation).
-- `pain_signals` carries a unique dedupe index on
-  `(raw_post_id, theme, md5(verbatim_quote))`, so the Python extractor can be
-  re-run without creating duplicate signals.
-
-Migrations are committed under `drizzle/`. Generate after schema changes, then
-apply:
+## Scripts
 
 ```bash
-npm run db:generate
-npm run db:migrate
+npm run dev | build | start
+npm run typecheck | test | lint | format | format:check
+
+npm run check:idea -- "idea" [--save] [--json]   # run a check from the terminal
+npm run check:resume                              # restart stuck paid checks
+npm run weekly:draft                              # draft this week's issue (DB + LLM)
+npm run weekly:publish -- <slug> [--drop n,m]     # publish a draft to /weekly
+npm run watch:digest                              # email Pro niche-watch digests
+npm run evidence:smoke -- "topic"                 # live source check
+
+npm run db:up | db:down | db:reset | db:seed      # local Postgres harness
+npm run db:generate | db:migrate | db:studio      # schema → migrations
+npm run db:export:waitlist -- --out subscribers.csv  # newsletter signups → CSV
+
+npm run api:smoke     # v1 API end to end (server running, after db:reset)
+npm run stripe:smoke  # Stripe webhook end to end (server and script share STRIPE_WEBHOOK_SECRET)
 ```
 
-### Local database harness
+CI (`.github/workflows/ci.yml`) runs typecheck, tests, lint, format check and
+build on every pull request. Unit tests use Node's built-in runner through
+`tsx` and never touch the network.
 
-`docker-compose.yml` + `db/init/01-roles.sql` provision a disposable Postgres
-with **two roles**, so row-level security is exercised for real:
-
-- `rpr_owner` — owns the database and tables; migrations run as this role
-  (`DATABASE_ADMIN_URL`) and owners bypass RLS.
-- `rpr_app` — the runtime role (`DATABASE_URL`); a non-owner, so the
-  `tenant_isolation` policies actually apply.
-
-```bash
-npm run db:up      # Postgres on host port 5434 (5432/5433 may be other projects)
-npm run db:reset   # wipe -> migrate -> seed (fresh tenant + evidence)
-npm run dev        # start the app (PORT=3100 if 3000 is taken)
-npm run api:smoke  # 30+ assertions across every v1 route
-```
-
-`drizzle-kit` prefers `DATABASE_ADMIN_URL` so the migrator can create the
-`drizzle` schema and the owner-scoped policies; the app talks to `DATABASE_URL`
-as the non-owner role. `db:seed` writes its API key to `.seed/api-key`
-(gitignored), which `npm run api:smoke` reads.
-
-## Deploy
-
-The app deploys to Vercel as-is (Node runtime, no custom build step). The work
-is in the services around it — a Postgres with two roles, Stripe, Resend, and a
-cron host for ingestion.
+## Deploy (Vercel)
 
 ### 1. Database (RLS needs two roles)
 
 Hosted Postgres (Neon, Supabase, RDS) must let you create a **non-owner** app
-role: RLS policies are bypassed by table owners and superusers, so pointing the
-runtime at the migration role silently disables tenant isolation.
+role. Table owners bypass row-level security, so the runtime must not use the
+migration role.
 
 ```sql
 -- run as the database owner
@@ -310,8 +127,7 @@ create role rpr_app login password '<strong-password>';
 grant usage on schema public to rpr_app;
 ```
 
-Then migrate once per release from your machine (creates tables, policies and
-the `drizzle` schema), and grant the app role access:
+Migrate on each release, then grant the app role access to any new tables:
 
 ```bash
 DATABASE_ADMIN_URL="postgres://owner:<pw>@<host>/<db>?sslmode=require" npm run db:migrate
@@ -319,247 +135,92 @@ psql "postgres://owner:<pw>@<host>/<db>" -c \
   "grant select, insert, update, delete on all tables in schema public to rpr_app;"
 ```
 
-- `DATABASE_ADMIN_URL` — owner connection. Used by migrations and the system
-  paths that must write before a tenant exists (Stripe provisioning) or resolve
-  an API key to an org.
-- `DATABASE_URL` — `rpr_app` connection. Used by normal request handling so the
-  policies actually apply. On Neon use the `-pooler` host; the app keeps a
-  small per-instance pool (`PG_POOL_MAX`, default 3).
+> **Upgrading from Reddit Pain Radar:** the `DROP_reddit_pipeline_tables`
+> migration permanently drops `subreddits`, `keyword_sets`, `raw_posts`,
+> `pain_signals` and `reports`. Back them up first if you want that data
+> (the command is in the migration file).
 
 ### 2. Environment variables
 
-| Variable                          | Required    | Notes                                                                            |
-| --------------------------------- | ----------- | -------------------------------------------------------------------------------- |
-| `DATABASE_URL`                    | yes         | Non-owner role, `?sslmode=require`                                               |
-| `DATABASE_ADMIN_URL`              | yes in prod | Owner role; used for provisioning + key lookup                                   |
-| `AUTH_SECRET`                     | yes         | `node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"` |
-| `AUTH_URL`                        | recommended | `https://painproof.co` (magic-link callbacks)                                    |
-| `NEXT_PUBLIC_SITE_URL`            | yes         | Canonical origin for metadata, sitemap, OG                                       |
-| `STRIPE_SECRET_KEY`               | yes         | Live or test secret key                                                          |
-| `STRIPE_WEBHOOK_SECRET`           | yes         | From the webhook endpoint you create below                                       |
-| `STRIPE_PRICE_STARTER`            | yes         | Price id for the $29/mo plan                                                     |
-| `STRIPE_PRICE_PRO`                | optional    | Maps a second price to `pro`                                                     |
-| `RESEND_API_KEY`                  | yes         | Without it, emails are only logged                                               |
-| `EMAIL_FROM`                      | yes         | Must be a verified Resend domain, e.g. `PainProof <hello@painproof.co>`          |
-| `PG_POOL_MAX`                     | optional    | Connections per function instance (default 3)                                    |
-| `NEXT_PUBLIC_STRIPE_PAYMENT_LINK` | optional    | Fallback CTA when Stripe Checkout is not configured                              |
+| Variable                                      | Required       | Notes                                                                            |
+| --------------------------------------------- | -------------- | -------------------------------------------------------------------------------- |
+| `DATABASE_URL`                                | yes            | `rpr_app` role, `?sslmode=require` (Neon: the `-pooler` host)                    |
+| `DATABASE_ADMIN_URL`                          | yes            | Owner role: provisioning, API-key lookup, digests                                |
+| `AUTH_SECRET`                                 | yes            | `node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"` |
+| `AUTH_URL`                                    | recommended    | `https://<domain>`                                                               |
+| `NEXT_PUBLIC_SITE_URL`                        | yes            | Canonical origin for metadata, sitemap and email links                           |
+| `DEEPSEEK_API_KEY`                            | yes            | Or `LLM_API_KEY` + `LLM_BASE_URL` + `LLM_MODEL`                                  |
+| `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` | yes            |                                                                                  |
+| `STRIPE_PRICE_CHECK`                          | to sell checks | One-time $9 price                                                                |
+| `STRIPE_PRICE_PRO`                            | to sell Pro    | Recurring $19/month price                                                        |
+| `RESEND_API_KEY` / `EMAIL_FROM`               | yes            | Verified sending domain, e.g. `PainProof <hello@painproof.co>`                   |
+| `WEEKLY_EDITOR_EMAIL`                         | for the cron   | Where weekly drafts go                                                           |
+| `GITHUB_TOKEN`                                | optional       | Higher GitHub search limits                                                      |
 
-Set them for Production, Preview and Development in the Vercel project; a
-missing `AUTH_SECRET` breaks sign-in, a missing `STRIPE_SECRET_KEY` silently
-sends checkout to the newsletter signup.
+Pages that sell something read these at build time: **redeploy after
+changing Stripe prices or the LLM key.** Without them the site shows
+"launching soon" instead of taking money it can't deliver on.
 
 ### 3. Stripe
 
-1. **Check My Idea:** create a product "Check My Idea" with a **$9 one-time**
-   price → `STRIPE_PRICE_CHECK`. To give early testers free reports, create a
-   100%-off coupon + promotion code (Checkout accepts promotion codes).
-2. **PainProof Pro:** a product "PainProof Pro" with a **$19/month recurring**
-   price → `STRIPE_PRICE_PRO`. In Stripe → Settings → Billing → **Customer
-   portal**, turn the portal on (cancel, update card, invoices) — the
-   dashboard's "Manage billing" button opens it.
-3. Add a webhook endpoint `https://<domain>/api/webhooks/stripe` subscribed to
+1. Product **Check My Idea**: $9 one-time price → `STRIPE_PRICE_CHECK`.
+2. Product **PainProof Pro**: $19/month recurring price → `STRIPE_PRICE_PRO`.
+3. Settings → Billing → **Customer portal**: turn it on (cancel, card, invoices).
+4. Optional: a 100%-off coupon and promotion code for early testers.
+5. Webhook endpoint `https://<domain>/api/webhooks/stripe`, events
    `checkout.session.completed`, `checkout.session.async_payment_succeeded`,
    `customer.subscription.updated`, `customer.subscription.deleted`,
-   `invoice.payment_failed`.
-4. Copy the signing secret into `STRIPE_WEBHOOK_SECRET`.
-5. Subscription checkout metadata (`plan=starter`) provisions the org, owner,
-   first API key and welcome email. Check purchases carry
-   `metadata.kind=idea_check` and run the check after the webhook responds
-   (`maxDuration = 300` on the webhook route; Vercel plans cap this).
-6. **Redeploy after setting `STRIPE_PRICE_CHECK`** — the landing and `/check`
-   pages are static and read it at build time.
-7. Stuck paid checks restart when their owner opens the report, or run
-   `npm run check:resume` (safe from cron).
+   `invoice.payment_failed`. Copy its signing secret to `STRIPE_WEBHOOK_SECRET`.
+
+The webhook route has `maxDuration = 300` because paid checks run after it
+responds. Vercel plans cap function duration.
 
 ### 4. Email
 
-Verify the sending domain in Resend, then set `RESEND_API_KEY` and
-`EMAIL_FROM`. Both the welcome email and magic links log to the server console
-when the key is absent, which is enough for a preview deployment but not for
-customers.
+Verify your sending domain in Resend, then set `RESEND_API_KEY` and
+`EMAIL_FROM`. Newsletter **sending** happens in Beehiiv or Kit. Export
+signups with `npm run db:export:waitlist`.
 
-### 5. Ingestion cron
+### 5. Scheduled jobs
 
-The Python worker (`reddit-pain-radar-worker/`) cannot run on Vercel: it needs
-`uv`, long-lived processes and its own database. Run `npm run evidence:sync`
-from a cron host (GitHub Actions, a small VM, or the worker's own scheduler) on
-the same `DATABASE_URL`, or keep the app fed by whatever writes
-`raw_posts` / `pain_signals` directly.
+`.github/workflows/painproof-cron.yml` runs on the default branch:
 
-`.github/workflows/evidence-sync.yml` runs that command daily at 06:00 UTC and
-on demand (`workflow_dispatch`, with a "skip fetch" input). It migrates and seeds
-the worker database first, then fetches, exports and ingests. Add these
-repository secrets under **Settings → Secrets and variables → Actions**:
+- Mondays 06:17 UTC: `weekly:draft`, then `watch:digest`.
+- Hourly: `check:resume`.
 
-| Secret                                      | Value                                                                                |
-| ------------------------------------------- | ------------------------------------------------------------------------------------ |
-| `APP_DATABASE_URL`                          | App `DATABASE_URL` (non-owner `rpr_app`, pooler host)                                |
-| `WORKER_DATABASE_URL`                       | Worker DB URL **with the SQLAlchemy driver**: `postgresql+psycopg://user:pw@host/db` |
-| `REDDIT_CLIENT_ID` / `REDDIT_CLIENT_SECRET` | Reddit app-only OAuth credentials                                                    |
-| `REDDIT_USER_AGENT`                         | Optional; defaults to `RedditPainRadar/1.0 by github-actions`                        |
-| `DEEPSEEK_API_KEY`                          | DeepSeek API key                                                                     |
-
-Optional repository **variables** `DEEPSEEK_BASE_URL` and `DEEPSEEK_MODEL`
-override the defaults. The worker database must stay separate from the app
-database (their table names collide by design), and `WORKER_DATABASE_URL` is
-written to `reddit-pain-radar-worker/.env` inside the job because
-`scripts/sync-evidence.ts` strips the app's `DATABASE_URL` from the subprocess.
-
-`.github/workflows/ci.yml` runs typecheck, lint, format check and build on every
-push to `main` and every pull request. It uses placeholder build env vars and
-needs no secrets.
+Repository **secrets**: `APP_DATABASE_URL`, `APP_DATABASE_ADMIN_URL`,
+`DEEPSEEK_API_KEY`, `RESEND_API_KEY`, `WEEKLY_EDITOR_EMAIL`,
+`STRIPE_SECRET_KEY`. **Variables**: `NEXT_PUBLIC_SITE_URL`, `EMAIL_FROM`,
+`STRIPE_PRICE_CHECK`, and optionally `DEEPSEEK_BASE_URL` / `DEEPSEEK_MODEL`.
 
 ### 6. After the first deploy
 
 ```bash
 curl -sI https://<domain> | grep -Ei "x-frame|referrer|strict-transport"
-curl -s -o /dev/null -w '%{http_code}\n' https://<domain>/api/v1/me          # 401
-curl -s -o /dev/null -w '%{http_code} %{redirect_url}\n' https://<domain>/api/checkout
-curl -s -o /dev/null -w '%{http_code}\n' -X POST https://<domain>/api/webhooks/stripe  # 400
+curl -s -o /dev/null -w '%{http_code}\n' https://<domain>/api/v1/me                 # 401
+curl -s -o /dev/null -w '%{http_code} %{redirect_url}\n' https://<domain>/api/checkout  # 302 to Stripe
+curl -s -o /dev/null -w '%{http_code}\n' -X POST https://<domain>/api/webhooks/stripe   # 400
 ```
 
-Then walk the real flow once: buy with a test card, confirm the webhook
-provisions an org, sign in at `/login` with the purchase email, and check the
-dashboard shows the plan and API key.
+Then do each real flow once in Stripe test mode:
 
-## Project Structure
+1. Buy a check with a 100%-off code. The report link should arrive by email.
+2. Subscribe to Pro, sign in at `/login`, run a check, add a watch topic.
+3. Run the cron workflow manually (`workflow_dispatch`) and read the draft email.
 
-```
-.github/workflows/       CI (typecheck/lint/format/build) + daily evidence sync
-auth.ts                  NextAuth config: adapter, Resend provider, session callback
-app/
-  layout.tsx             fonts, metadata, MotionProvider, dark-only shell
-  page.tsx               composes all sections + SoftwareApplication JSON-LD
-  globals.css            Tailwind v4 @theme tokens + keyframes
-  opengraph-image.tsx    generated OG image (ImageResponse)
-  icon.svg               favicon
-  sitemap.ts             /sitemap.xml
-  robots.ts              /robots.txt
-  login/page.tsx         magic-link sign-in
-  dashboard/             session-gated account area (layout + page + reports/[id])
-  api/auth/[...nextauth]/ Auth.js handlers
-  api/v1/                JSON backend (route handlers), API-key authed
-components/
-  auth/login-form.tsx    sign-in form (server action + pending state)
-  sections/              one file per page section (kebab-case)
-    announcement-bar.tsx  navbar.tsx        hero.tsx
-    social-proof.tsx      how-it-works.tsx  features.tsx
-    demo-report.tsx       testimonials.tsx  pricing.tsx
-    faq.tsx               final-cta.tsx     footer.tsx
-  ui/                    shadcn primitives + hand-built effect components
-    button.tsx input.tsx accordion.tsx
-    spotlight.tsx aurora-background.tsx bento-grid.tsx
-    animated-testimonials.tsx marquee.tsx
-    reveal.tsx count-up.tsx section.tsx
-  providers/
-    motion-provider.tsx  global reduced-motion config
-lib/
-  motion.ts              shared animation variants
-  copy.ts                all marketing copy
-  site.ts                site config, nav links, Stripe env
-  utils.ts               cn re-export
-  rate-limit.ts          in-memory fixed-window limiter
-  actions/waitlist.ts    joinWaitlist() server action
-  actions/auth.ts        requestMagicLink() / signOutAction()
-  api/                   v1 API helpers (http, auth, validate)
-  auth/api-key.ts        API key generate/hash helpers
-  auth/adapter.ts        hand-written Auth.js adapter (Drizzle)
-  dashboard/data.ts      session + tenant data for the dashboard
-  email/                 welcome + magic-link emails (log when unconfigured)
-  reports/               report generator (pure) + runReport service
-db/
-  schema.ts              tables, enums, relations, RLS policies, inferred types
-  index.ts               pooled pg client + drizzle() instance
-  tenant.ts              withTenant() RLS-scoped transaction helper
-  admin.ts               privileged (RLS-bypassing) drizzle instance
-  queries.ts             data-access layer
-types/next-auth.d.ts     session.user.id augmentation
-scripts/
-  export-waitlist.ts     waitlist -> CSV export
-  db-seed.ts             seed the local harness (tenant + evidence + API key)
-  api-smoke.ts           end-to-end v1 API smoke test
-db/init/01-roles.sql     harness roles (rpr_owner / rpr_app)
-docker-compose.yml       local Postgres with RLS roles
-drizzle/                 generated SQL migrations (committed)
-drizzle.config.ts        drizzle-kit config
-reddit-pain-radar-worker/  standalone Python worker (separate uv project)
-  src/radar/             fetch -> extract -> score -> cluster -> report
-  tests/                 pytest suite (no DB or network needed)
-```
+## Project structure
 
-## Worker
+See the tree in [AGENTS.md → Project Structure](AGENTS.md#project-structure).
+In short: `app/` (pages and route handlers), `components/` (landing sections,
+report views, dashboard forms), `lib/` (evidence, LLM, check engine, weekly,
+watch, billing, Stripe, email), `db/` (schema, clients, RLS tenant helper),
+`scripts/` (CLI jobs and smoke tests), `tests/` (unit tests), `drizzle/`
+(migrations), `painproof/` (business docs).
 
-`reddit-pain-radar-worker/` is a self-contained Python project that ingests
-Reddit evidence into **its own database** (Alembic-managed; its schema shares
-table names with the app's Drizzle schema but not columns, so the two
-databases must stay separate) and can generate its own scored reports. It has
-no web server and is not imported by the Next.js app.
+## Design notes
 
-```bash
-cd reddit-pain-radar-worker
-uv sync                       # install dependencies
-uv run pytest                 # tests — must pass before any change ships
-uv run alembic upgrade head   # create tables (its own DATABASE_URL)
-uv run radar run              # full pipeline once: fetch -> extract -> score -> report
-uv run radar schedule         # APScheduler loop (default: cron 0 6 * * *)
-```
-
-### Feeding the app (worker → app evidence bridge)
-
-Customer-facing reports are generated by the **app** from `raw_posts` /
-`pain_signals` in the app database. Evidence crosses from the worker to the
-app through a versioned JSONL file (`rpr-evidence/v1`) — never a shared
-database connection:
-
-```bash
-cd reddit-pain-radar-worker
-uv run radar export --out ../data/evidence.jsonl  # posts + scored signals
-cd ..
-npm run db:ingest -- data/evidence.jsonl          # idempotent upsert into the app DB
-```
-
-The export drops signals without an LLM theme ("not a pain point"), the
-import refreshes posts by `reddit_id` while keeping row UUIDs stable, and
-re-running either side is a no-op — so a nightly cron can run
-fetch → export → ingest without dedupe bookkeeping.
-`uv run python scripts/seed_evidence.py` seeds the worker database with
-realistic sample evidence (no Reddit/DeepSeek keys) to exercise the whole
-bridge locally.
-
-For a single scheduled command, the orchestrator runs all three stages:
-
-```bash
-npm run evidence:sync                    # fetch -> export -> ingest (cron entry point)
-npm run evidence:sync -- --skip-fetch    # export + ingest only (bash/cmd)
-# PowerShell: $env:EVIDENCE_SKIP_FETCH = "1"; npm run evidence:sync
-```
-
-A failed fetch only warns (so export+ingest still move what the worker DB
-already holds); export/ingest failures exit non-zero for cron to notice.
-The orchestrator strips the app's `DATABASE_URL` from the worker's
-environment — the worker always resolves its own from
-`reddit-pain-radar-worker/.env`, and the two must never cross.
-
-```cron
-0 6 * * * cd /path/to/reddit-pain-radar && npm run evidence:sync
-```
-
-Note: `npm run db:reset` recreates the whole Postgres volume, **worker
-database included** — after a reset, restore it with
-`uv run alembic upgrade head` + `uv run python scripts/seed_evidence.py`
-(or a real `uv run radar fetch`).
-
-See `reddit-pain-radar-worker/README.md` for the full pipeline description and
-`reddit-pain-radar-worker/AGENTS.md` for the conventions that govern it. The
-older `workers/` scripts remain as a simpler, script-style ingestion path.
-
-## Design Notes
-
-- **Dark only.** No light mode, no theme toggle, no `dark:` variants.
-- **Design tokens** live in `app/globals.css` under `@theme` and are used as
-  Tailwind utilities (`bg-canvas`, `text-ink`, `border-line`, `text-brand`, ...).
-- **Copy** is centralized in `lib/copy.ts`; edit there, not in the section files.
-- **Reduced motion** is handled by `MotionProvider` (`MotionConfig reducedMotion="user"`).
-  Never branch on `useReducedMotion()` during render.
-
-See `AGENTS.md` for the full conventions and verification checklist.
+- **Dark only.** No light mode, no theme toggle, no `dark:` variants. Tokens
+  live in `app/globals.css` under `@theme` (`bg-canvas`, `text-ink`, `border-line`, …).
+- **Copy** is centralized in `lib/copy.ts`. Every claim must be true today or
+  marked "soon": no invented testimonials, counts or scarcity.
+- **Reduced motion** is handled globally by `MotionProvider`.

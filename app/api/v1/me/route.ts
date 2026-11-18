@@ -1,24 +1,24 @@
-import { countReportsSince, getOrg } from "@/db/queries";
+import { getOrg } from "@/db/queries";
 import {
+  checkQuota,
   effectivePlan,
-  reportQuota,
   startOfUtcMonth,
 } from "@/lib/billing/limits";
 import { withAuth } from "@/lib/api/handler";
 import { apiError, json } from "@/lib/api/http";
+import { countOrgChecksSince } from "@/lib/check/store";
 
 /**
- * GET /api/v1/me — the org behind the presented API key, plus the plan
- * limits the API enforces (`effectivePlan` folds in trial expiry; the
- * monthly quota counts non-failed reports since the UTC month start).
+ * GET /api/v1/me — the workspace behind the presented API key and its
+ * PainProof Pro allowance (`effectivePlan` folds in inactive subscriptions;
+ * the monthly quota counts non-failed checks since the UTC month start).
  */
 export const GET = withAuth(async (_request, principal) => {
   const org = await getOrg(principal.orgId);
   if (!org) return apiError(404, "Organization not found.", "not_found");
 
   const plan = effectivePlan(org);
-  const quota = reportQuota(plan);
-  const usedThisMonth = await countReportsSince(org.id, startOfUtcMonth());
+  const used = await countOrgChecksSince(org.id, startOfUtcMonth());
 
   return json({
     data: {
@@ -27,8 +27,8 @@ export const GET = withAuth(async (_request, principal) => {
       slug: org.slug,
       plan: org.plan,
       effectivePlan: plan,
-      reportQuota: quota,
-      reportsUsedThisMonth: usedThisMonth,
+      checkQuota: checkQuota(plan),
+      checksUsedThisMonth: used,
     },
   });
 });

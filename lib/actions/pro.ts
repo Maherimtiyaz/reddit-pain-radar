@@ -7,17 +7,13 @@ import { after } from "next/server";
 
 import { findOrgForUser } from "@/db/queries";
 import {
-  checkQuota,
   effectivePlan,
   hasProAccess,
-  startOfUtcMonth,
   watchTopicLimit,
 } from "@/lib/billing/limits";
+import { startProCheck } from "@/lib/check/pro";
 import { runPaidCheck } from "@/lib/check/purchase";
-import { IdeaValidationError, normalizeIdea } from "@/lib/check/run";
-import { countOrgChecksSince, createIdeaCheck } from "@/lib/check/store";
 import { requireDashboardUser } from "@/lib/dashboard/data";
-import { isLlmConfigured } from "@/lib/llm/client";
 import { rateLimit } from "@/lib/rate-limit";
 import { getStripe } from "@/lib/stripe/client";
 import {
@@ -46,16 +42,8 @@ export async function runProCheckAction(
   formData: FormData,
 ): Promise<ProFormState> {
   const value = String(formData.get("idea") ?? "");
-  const { user, org, plan } = await requireProWorkspace();
-  if (!org || !plan || !hasProAccess(plan)) {
-    return { value, error: "Idea checks are part of PainProof Pro." };
-  }
-  if (!isLlmConfigured()) {
-    return {
-      value,
-      error: "Checks are temporarily unavailable. Please try again later.",
-    };
-  }
+  const { user, org } = await requireProWorkspace();
+  if (!org) return { value, error: "Idea checks are part of PainProof Pro." };
 
   const limit = rateLimit(`pro-check:${user.id}`, 10, 10 * 60_000);
   if (!limit.ok) {
@@ -65,30 +53,10 @@ export async function runProCheckAction(
     };
   }
 
-  const used = await countOrgChecksSince(org.id, startOfUtcMonth());
-  if (used >= checkQuota(plan)) {
-    return {
-      value,
-      error: `You've used all ${checkQuota(plan)} checks this month. They reset on the 1st (UTC).`,
-    };
-  }
+  const started = await startProCheck({ org, email: user.email, idea: value });
+  if (!started.ok) return { value, error: started.message };
 
-  let idea: string;
-  try {
-    idea = normalizeIdea(value);
-  } catch (error) {
-    if (error instanceof IdeaValidationError)
-      return { value, error: error.message };
-    throw error;
-  }
-
-  const { id, token } = await createIdeaCheck({
-    idea,
-    email: user.email,
-    origin: "pro",
-    orgId: org.id,
-    status: "queued",
-  });
+  const { id, token } = started;
   after(async () => {
     try {
       await runPaidCheck({ checkId: id, token });
