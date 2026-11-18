@@ -79,6 +79,23 @@ npm run stripe:smoke # end-to-end billing webhook test (server + secret must mat
 
 Always run `npm run typecheck`, `npm run lint`, and `npm run build` before shipping.
 
+## Check My Idea
+
+`lib/check/` checks one idea against public evidence (Hacker News + GitHub)
+and returns a verdict (build / niche down / skip / not enough evidence), a
+PainProof Score computed by our formula, verbatim linked quotes, competitors,
+angles and a 48-hour test. The model may only cite fetched items; quotes that
+are not verbatim are dropped. Reports are stored in `idea_checks` and read at
+`/check/[id]?t=<private token>`.
+
+```bash
+npm run check:idea -- "Invoice reminders for freelance designers"          # print the report
+npm run check:idea -- "Invoice reminders for freelance designers" --save   # store it + print the private link
+```
+
+Needs `DEEPSEEK_API_KEY` (or `LLM_API_KEY` + `LLM_BASE_URL` + `LLM_MODEL` for
+any OpenAI-compatible provider). See AGENTS.md → "Check My Idea engine".
+
 ## Accounts & Sign-in
 
 Customers authenticate with an **email magic link** (Auth.js v5 + Resend,

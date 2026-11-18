@@ -56,6 +56,7 @@ npm run start        # serve the production build
 npm run typecheck   # tsc --noEmit
 npm test            # unit tests (tests/**/*.test.ts, node:test via tsx)
 npm run evidence:smoke # live HN + GitHub source check (network)
+npm run check:idea -- "idea" # run a Check My Idea report (needs an LLM key)
 npm run lint        # eslint
 npm run format      # prettier --write .
 npm run format:check
@@ -228,7 +229,7 @@ schema (Drizzle here, Alembic there).
 ## Database (Drizzle ORM v1 RC + node-postgres)
 
 - **Single schema file:** `db/schema.ts` (`drizzle.config.ts` points at it). All column names are written **explicitly in `snake_case`** with camelCase JS keys — drizzle-kit v1 has no top-level `casing` option, so do not rely on it.
-- **14 tables:** `users`, `accounts`, `sessions`, `verification_tokens`, `orgs`, `memberships`, `subreddits`, `keyword_sets`, `raw_posts`, `pain_signals`, `reports`, `api_keys`, `stripe_events`, `waitlist`. Enums: `role` (`owner|admin|member`), `plan` (`trial|starter|pro`), `report_status` (`queued|running|complete|failed`). The four auth tables are global (no RLS).
+- **15 tables:** `idea_checks` (PainProof, global, see "Check My Idea engine"), `users`, `accounts`, `sessions`, `verification_tokens`, `orgs`, `memberships`, `subreddits`, `keyword_sets`, `raw_posts`, `pain_signals`, `reports`, `api_keys`, `stripe_events`, `waitlist`. Enums: `role` (`owner|admin|member`), `plan` (`trial|starter|pro`), `report_status` (`queued|running|complete|failed`). The four auth tables are global (no RLS).
 - **PKs:** `uuid().defaultRandom()`. Scores are `real`. `reports.subreddit_ids` is `uuid[]`. `keyword_sets.keywords` is `jsonb string[]`.
 - **Auth columns:** `users.email_verified` is added for the adapter; `users.image` maps to the pre-existing `avatar_url` column (no rename migration). `accounts`, `sessions`, and `verification_tokens` follow Auth.js's model (`sessions.session_token` is the PK; `verification_tokens` is keyed by `(identifier, token)`). New signups store a lowercased email, and both the adapter and `createOrgWithOwner` match emails case-insensitively so Stripe-provisioned users are reused rather than duplicated.
 - **Dedupe:** `pain_signals` has a unique index on `(raw_post_id, theme, md5(verbatim_quote))` so re-running extraction never duplicates signals (the quote is hashed to stay within the btree index-tuple limit).
@@ -265,6 +266,26 @@ schema (Drizzle here, Alembic there).
 - `collect.ts` — `collectEvidence(searches)` runs searches with per-source concurrency (HN 4, GitHub 2), de-dupes, and records per-search errors instead of throwing. `selectPainful` keeps items with pain phrases plus their quotes.
 
 Rules: only sources with public APIs; never scrape; every quote shown to a user must keep its `url`. The regex prefilter is a hint, not a gate — on real data most relevant comments contain no stock pain phrase, so relevance/pain judgement belongs to the LLM step.
+
+## Check My Idea engine
+
+`lib/check/` turns one idea into a verified report. Pipeline (`run.ts#runIdeaCheck`, all I/O injectable for tests):
+
+1. `normalizeIdea` — 15–600 chars, whitespace collapsed (`IdeaValidationError` otherwise).
+2. `plan.ts#planCheck` — the LLM proposes 2–4-word queries (HN requires every word to match): pain queries → HN comments, competitor queries → Show HN, GitHub queries → issues by 👍. Output is validated; any failure falls back to a keyword plan.
+3. `collectEvidence` (Phase 2 layer).
+4. `assess.ts#selectForPrompt` — ≤40 pain candidates (pain phrase › engagement › recency) + ≤12 competitor stories, labelled `E1..En`.
+5. `assess.ts#assessEvidence` — the LLM scores demand / wtp / openness / ease (0–10) citing labels only. **Validation is the safety net:** unknown labels are dropped; proof must cite an item the model marked relevant and must be a verbatim substring of that item (`verifyQuote`, 25–320 chars, tolerant only of case/whitespace/curly quotes); competitor links come only from cited items.
+6. `score.ts` — **we** compute `(demand×0.30 + wtp×0.30 + openness×0.25 + ease×0.15)×10`; ≥75 build, 55–74 niche down, <55 skip. Fewer than 3 relevant items or 2 verified quotes → verdict `insufficient`, score `null` (never guess).
+7. `render.ts` — markdown for email/export; `components/check/report-view.tsx` renders the same `CheckResult` as a page.
+
+Storage (`store.ts`): `idea_checks` is **global** (no RLS); access is a private link `/check/[id]?t=<token>`, only the token's SHA-256 is stored, compared in constant time. `runStoredCheck` claims a row atomically (`queued → running`) so duplicate triggers never run twice. Statuses: `pending_payment → queued → running → complete | failed`.
+
+Page: `app/check/[id]/page.tsx` — static shell + `<Suspense>` around the token check (reads `searchParams`, calls `connection()`); `noindex` + `referrer: no-referrer` so the token never leaks. While queued/running it re-renders every 5 s (`RefreshWhilePending`).
+
+LLM: `lib/llm/client.ts` — any OpenAI-compatible chat API in JSON mode via fetch (no SDK). Defaults to DeepSeek (`DEEPSEEK_API_KEY`/`DEEPSEEK_BASE_URL`/`DEEPSEEK_MODEL`); `LLM_API_KEY`/`LLM_BASE_URL`/`LLM_MODEL` override.
+
+CLI: `npm run check:idea -- "idea" [--save] [--email x] [--json]` runs a real check (needs an LLM key; `--save` also needs the DB and prints the private link).
 
 ## Backend API (v1)
 

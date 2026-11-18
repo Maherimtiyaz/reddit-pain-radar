@@ -16,6 +16,8 @@ import {
 } from "drizzle-orm/pg-core";
 import type Stripe from "stripe";
 
+import type { CheckResult } from "@/lib/check/types";
+
 /* ------------------------------------------------------------------ */
 /* Enums                                                               */
 /* ------------------------------------------------------------------ */
@@ -23,6 +25,13 @@ import type Stripe from "stripe";
 export const roleEnum = pgEnum("role", ["owner", "admin", "member"]);
 export const planEnum = pgEnum("plan", ["trial", "starter", "pro"]);
 export const reportStatusEnum = pgEnum("report_status", [
+  "queued",
+  "running",
+  "complete",
+  "failed",
+]);
+export const ideaCheckStatusEnum = pgEnum("idea_check_status", [
+  "pending_payment",
   "queued",
   "running",
   "complete",
@@ -244,6 +253,43 @@ export const painSignals = pgTable(
 );
 
 /* ------------------------------------------------------------------ */
+/* PainProof: Check My Idea (global — access by private link token)    */
+/* ------------------------------------------------------------------ */
+
+/**
+ * One "Check My Idea" report. Not org-scoped: a buyer needs no account, and
+ * the report is reached through a private link whose token is stored only as
+ * a SHA-256 hash (`access_token_hash`), like API keys.
+ *
+ * `result` is the validated `CheckResult` (lib/check/types.ts); `markdown` is
+ * the same report rendered for email/export.
+ */
+export const ideaChecks = pgTable(
+  "idea_checks",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    idea: text("idea").notNull(),
+    email: text("email"),
+    status: ideaCheckStatusEnum("status").notNull().default("queued"),
+    accessTokenHash: text("access_token_hash").notNull(),
+    /** Where the check came from: `cli`, `checkout` (paid), `pro`. */
+    origin: text("origin").notNull().default("cli"),
+    score: integer("score"),
+    verdict: text("verdict"),
+    result: jsonb("result").$type<CheckResult>(),
+    markdown: text("markdown"),
+    error: text("error"),
+    createdAt: now(),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+  },
+  (t) => [
+    index("idea_checks_status_idx").on(t.status),
+    index("idea_checks_email_idx").on(t.email),
+  ],
+);
+
+/* ------------------------------------------------------------------ */
 /* Marketing (global, intentionally NOT org-scoped)                    */
 /* ------------------------------------------------------------------ */
 
@@ -339,6 +385,7 @@ export const relations = defineRelations(
     painSignals,
     reports,
     apiKeys,
+    ideaChecks,
   },
   (r) => ({
     users: {
@@ -407,5 +454,7 @@ export type ApiKey = typeof apiKeys.$inferSelect;
 export type NewApiKey = typeof apiKeys.$inferInsert;
 export type StripeEvent = typeof stripeEvents.$inferSelect;
 export type NewStripeEvent = typeof stripeEvents.$inferInsert;
+export type IdeaCheck = typeof ideaChecks.$inferSelect;
+export type NewIdeaCheck = typeof ideaChecks.$inferInsert;
 export type Waitlist = typeof waitlist.$inferSelect;
 export type NewWaitlist = typeof waitlist.$inferInsert;
