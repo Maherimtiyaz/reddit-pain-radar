@@ -201,6 +201,29 @@ export const keywordSets = pgTable.withRLS(
   (t) => [index("keyword_sets_org_id_idx").on(t.orgId), tenantPolicy()],
 );
 
+/**
+ * PainProof Pro "niche watch": topics a workspace follows. Each week the
+ * digest emails new pain quotes matching them (scripts/watch-digest.ts).
+ */
+export const watchTopics = pgTable.withRLS(
+  "watch_topics",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => orgs.id, { onDelete: "cascade" }),
+    topic: text("topic").notNull(),
+    createdAt: now(),
+    /** Last digest that covered this topic; only newer posts are sent. */
+    lastSentAt: timestamp("last_sent_at", { withTimezone: true }),
+  },
+  (t) => [
+    unique("watch_topics_org_id_topic_key").on(t.orgId, t.topic),
+    index("watch_topics_org_id_idx").on(t.orgId),
+    tenantPolicy(),
+  ],
+);
+
 /* ------------------------------------------------------------------ */
 /* Evidence (global & immutable — intentionally NOT org-scoped)        */
 /* ------------------------------------------------------------------ */
@@ -279,6 +302,8 @@ export const ideaChecks = pgTable(
     accessTokenHash: text("access_token_hash").notNull(),
     /** Where the check came from: `cli`, `checkout` (paid), `pro`. */
     origin: text("origin").notNull().default("cli"),
+    /** Set for Pro checks: the workspace whose quota it used. */
+    orgId: uuid("org_id").references(() => orgs.id, { onDelete: "set null" }),
     score: integer("score"),
     verdict: text("verdict"),
     result: jsonb("result").$type<CheckResult>(),
@@ -294,6 +319,7 @@ export const ideaChecks = pgTable(
   (t) => [
     index("idea_checks_status_idx").on(t.status),
     index("idea_checks_email_idx").on(t.email),
+    index("idea_checks_org_id_created_at_idx").on(t.orgId, t.createdAt),
   ],
 );
 
@@ -420,6 +446,7 @@ export const relations = defineRelations(
     apiKeys,
     ideaChecks,
     weeklyIssues,
+    watchTopics,
   },
   (r) => ({
     users: {
@@ -490,6 +517,7 @@ export type StripeEvent = typeof stripeEvents.$inferSelect;
 export type NewStripeEvent = typeof stripeEvents.$inferInsert;
 export type IdeaCheck = typeof ideaChecks.$inferSelect;
 export type WeeklyIssue = typeof weeklyIssues.$inferSelect;
+export type WatchTopic = typeof watchTopics.$inferSelect;
 export type NewIdeaCheck = typeof ideaChecks.$inferInsert;
 export type Waitlist = typeof waitlist.$inferSelect;
 export type NewWaitlist = typeof waitlist.$inferInsert;

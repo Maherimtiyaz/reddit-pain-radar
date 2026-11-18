@@ -59,6 +59,7 @@ npm run evidence:smoke # live HN + GitHub source check (network)
 npm run check:idea -- "idea" # run a Check My Idea report (needs an LLM key)
 npm run weekly:draft  # draft this week's PainProof Weekly (DB + LLM)
 npm run weekly:publish -- <slug> [--drop 3,5] # publish a draft to /weekly
+npm run watch:digest  # email Pro niche-watch digests (privileged DB)
 npm run lint        # eslint
 npm run format      # prettier --write .
 npm run format:check
@@ -231,7 +232,7 @@ schema (Drizzle here, Alembic there).
 ## Database (Drizzle ORM v1 RC + node-postgres)
 
 - **Single schema file:** `db/schema.ts` (`drizzle.config.ts` points at it). All column names are written **explicitly in `snake_case`** with camelCase JS keys — drizzle-kit v1 has no top-level `casing` option, so do not rely on it.
-- **16 tables:** `idea_checks` and `weekly_issues` (PainProof, global), `users`, `accounts`, `sessions`, `verification_tokens`, `orgs`, `memberships`, `subreddits`, `keyword_sets`, `raw_posts`, `pain_signals`, `reports`, `api_keys`, `stripe_events`, `waitlist`. Enums: `role` (`owner|admin|member`), `plan` (`trial|starter|pro`), `report_status` (`queued|running|complete|failed`). The four auth tables are global (no RLS).
+- **17 tables:** `idea_checks` and `weekly_issues` (PainProof, global), `watch_topics` (PainProof Pro, org-scoped with RLS), `users`, `accounts`, `sessions`, `verification_tokens`, `orgs`, `memberships`, `subreddits`, `keyword_sets`, `raw_posts`, `pain_signals`, `reports`, `api_keys`, `stripe_events`, `waitlist`. Enums: `role` (`owner|admin|member`), `plan` (`trial|starter|pro`), `report_status` (`queued|running|complete|failed`). The four auth tables are global (no RLS).
 - **PKs:** `uuid().defaultRandom()`. Scores are `real`. `reports.subreddit_ids` is `uuid[]`. `keyword_sets.keywords` is `jsonb string[]`.
 - **Auth columns:** `users.email_verified` is added for the adapter; `users.image` maps to the pre-existing `avatar_url` column (no rename migration). `accounts`, `sessions`, and `verification_tokens` follow Auth.js's model (`sessions.session_token` is the PK; `verification_tokens` is keyed by `(identifier, token)`). New signups store a lowercased email, and both the adapter and `createOrgWithOwner` match emails case-insensitively so Stripe-provisioned users are reused rather than duplicated.
 - **Dedupe:** `pain_signals` has a unique index on `(raw_post_id, theme, md5(verbatim_quote))` so re-running extraction never duplicates signals (the quote is hashed to stay within the btree index-tuple limit).
@@ -307,6 +308,15 @@ The app **writes and archives** the newsletter; a newsletter tool (Beehiiv/Kit) 
 - Commands: `npm run weekly:draft` (saves draft, writes `data/weekly/<slug>.md`, emails `WEEKLY_EDITOR_EMAIL`), `npm run weekly:publish -- <slug> [--drop 3,5]`.
 - Pages: `/weekly` (archive) and `/weekly/[slug]` — static shell + `<Suspense>` + `connection()`; `generateMetadata` reads the issue (streams with the deferred content). The sitemap lists published issues and survives a DB outage.
 - Cron: `.github/workflows/painproof-cron.yml` — Mondays 06:17 UTC `weekly:draft`; hourly `check:resume`. Secrets `APP_DATABASE_URL`, `DEEPSEEK_API_KEY`, `RESEND_API_KEY`, `WEEKLY_EDITOR_EMAIL`, `STRIPE_SECRET_KEY`; variables `NEXT_PUBLIC_SITE_URL`, `EMAIL_FROM`, `STRIPE_PRICE_CHECK`. The workflow's own `github.token` is used for GitHub search.
+
+## PainProof Pro (`/dashboard`)
+
+- **Plans** (`lib/billing/limits.ts`): `checkQuota` — pro/starter 30 checks per UTC month (failed checks excluded), trial/expired 0; `watchTopicLimit` — 5; `hasProAccess(plan)` gates every Pro action. `orgs.plan` stays owned by the Stripe webhooks (cancel → `trial`).
+- **Checkout:** `GET /api/checkout` prefers `STRIPE_PRICE_PRO` (`metadata.plan=pro`), else legacy `STRIPE_PRICE_STARTER`. `isProSaleOpen()` (Stripe key + Pro price + LLM key) shows the Pro pricing card and upsells. The welcome email (`lib/email/welcome.ts`) points to `/login`; the API key is a secondary note.
+- **Dashboard data:** `getProDashboardData()` / `getDashboardCheck()` in `lib/dashboard/data.ts`. Pro checks are `idea_checks` rows with `org_id` (app-layer scoped: `countOrgChecksSince`, `listOrgChecks`, `getOrgCheck` always filter by org). `/dashboard/checks/[id]` renders `CheckReportView` without a token.
+- **Actions** (`lib/actions/pro.ts`, all re-check session → workspace → plan): `runProCheckAction` (per-user 10/10 min, quota, `after(runPaidCheck)` — the page sets `maxDuration = 300`), `addWatchTopicAction` / `removeWatchTopicAction` (`revalidatePath`), `openBillingPortalAction` (Stripe portal; `?billing=unavailable` notice on failure).
+- **Niche watch:** `watch_topics` is org-scoped **with RLS** (`withTenant` for reads/writes). `lib/watch/digest.ts` is model-free: per topic, HN comments + GitHub issues newer than `last_sent_at` (≤14 days), `selectPainful` + issues with ≥10 👍, top 5 by engagement. `npm run watch:digest` lists targets with the privileged client (system path across tenants) and marks topics sent only after a delivered email.
+- Grid layouts with truncating children need `min-w-0` on the grid items (`[&>*]:min-w-0`), or long titles overflow at 375px.
 
 ## Backend API (v1)
 

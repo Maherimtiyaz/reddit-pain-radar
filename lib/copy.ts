@@ -161,6 +161,24 @@ export const pricing = {
       openHref: "/check",
       highlight: true,
     },
+    {
+      name: "PainProof Pro",
+      price: "$19",
+      period: "/month",
+      tagline: "For founders who check ideas every week.",
+      badge: null,
+      features: [
+        "30 idea checks a month",
+        "Niche watch: new pains in 5 topics, every Monday",
+        "Every report saved in your dashboard",
+        "Cancel anytime from the billing portal",
+      ],
+      cta: "Get Pro",
+      href: "/api/checkout",
+      openCta: "Get Pro",
+      openHref: "/api/checkout",
+      highlight: false,
+    },
   ],
 } as const;
 

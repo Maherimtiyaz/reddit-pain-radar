@@ -3,89 +3,70 @@ import type { ReactNode } from "react";
 import {
   ArrowRight,
   CircleAlert,
-  Code2,
-  FileText,
-  KeyRound,
-  Radar,
+  CreditCard,
+  Eye,
+  FileSearch,
+  Newspaper,
+  X,
 } from "lucide-react";
 
+import { ProCheckForm } from "@/components/dashboard/pro-check-form";
+import { WatchTopicForm } from "@/components/dashboard/watch-topic-form";
 import { Button } from "@/components/ui/button";
-import { getDashboardData } from "@/lib/dashboard/data";
+import {
+  openBillingPortalAction,
+  removeWatchTopicAction,
+} from "@/lib/actions/pro";
 import type { EffectivePlan } from "@/lib/billing/limits";
+import {
+  CHECK_PRICE_LABEL,
+  isCheckSaleOpen,
+  isProSaleOpen,
+  PRO_PRICE_LABEL,
+} from "@/lib/check/availability";
+import { VERDICT_LABELS } from "@/lib/check/score";
+import type { Verdict } from "@/lib/check/types";
+import { getProDashboardData } from "@/lib/dashboard/data";
 
 // Session-gated: no static shell, and navigations may block on the DB.
 export const instant = false;
+// Pro checks started from this page run after the action responds.
+export const maxDuration = 300;
 
-const dateFormatter = new Intl.DateTimeFormat("en-US", {
-  dateStyle: "medium",
-});
+const dateFormatter = new Intl.DateTimeFormat("en-US", { dateStyle: "medium" });
 
-function planLabel(plan: EffectivePlan): string {
-  switch (plan) {
-    case "expired_trial":
-      return "Trial expired";
-    case "starter":
-      return "Starter";
-    case "pro":
-      return "Pro";
-    default:
-      return "Trial";
-  }
-}
+const PLAN_LABELS: Record<EffectivePlan, string> = {
+  pro: "Pro",
+  starter: "Pro (legacy)",
+  trial: "Inactive",
+  expired_trial: "Inactive",
+};
 
-function planBadgeClass(plan: EffectivePlan): string {
-  switch (plan) {
-    case "starter":
-      return "border-brand/30 bg-brand/10 text-brand-light";
-    case "pro":
-      return "border-signal/30 bg-signal/10 text-signal";
-    case "expired_trial":
-      return "border-red-500/30 bg-red-500/10 text-red-300";
-    default:
-      return "border-urgency/30 bg-urgency/10 text-urgency";
-  }
-}
-
-function statusBadgeClass(status: string): string {
-  switch (status) {
-    case "complete":
-      return "border-signal/30 bg-signal/10 text-signal";
-    case "failed":
-      return "border-red-500/30 bg-red-500/10 text-red-300";
-    default:
-      return "border-urgency/30 bg-urgency/10 text-urgency";
-  }
-}
-
-function Badge({
-  children,
-  className,
-}: {
-  children: ReactNode;
-  className: string;
-}) {
-  return (
-    <span
-      className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium capitalize ${className}`}
-    >
-      {children}
-    </span>
-  );
-}
+const VERDICT_STYLE: Record<Verdict, string> = {
+  build: "border-signal/30 bg-signal/10 text-signal",
+  niche_down: "border-urgency/30 bg-urgency/10 text-urgency",
+  skip: "border-destructive/30 bg-destructive/10 text-destructive",
+  insufficient: "border-line bg-surface-2 text-ink-muted",
+};
 
 function Card({
   title,
+  icon,
   action,
   children,
 }: {
   title: string;
+  icon?: ReactNode;
   action?: ReactNode;
   children: ReactNode;
 }) {
   return (
     <section className="border-line bg-surface rounded-2xl border">
       <header className="border-line flex items-center justify-between gap-3 border-b px-5 py-4">
-        <h2 className="font-heading text-ink text-sm font-semibold">{title}</h2>
+        <h2 className="font-heading text-ink flex items-center gap-2 text-sm font-semibold">
+          {icon}
+          {title}
+        </h2>
         {action}
       </header>
       <div className="p-5">{children}</div>
@@ -115,283 +96,275 @@ function Stat({
   );
 }
 
-function EmptyState({ children }: { children: ReactNode }) {
-  return <p className="text-ink-faint text-sm leading-relaxed">{children}</p>;
-}
-
-export default async function DashboardPage() {
-  const data = await getDashboardData();
-  const { user, membership } = data;
-
-  if (!membership) {
+function CheckStatus({
+  status,
+  verdict,
+  score,
+}: {
+  status: string;
+  verdict: string | null;
+  score: number | null;
+}) {
+  if (status === "complete" && verdict && verdict in VERDICT_STYLE) {
+    const v = verdict as Verdict;
     return (
-      <div className="mx-auto max-w-2xl">
-        <div className="border-line bg-surface rounded-2xl border p-8">
-          <span className="border-brand/30 bg-brand/10 text-brand-light flex size-11 items-center justify-center rounded-xl border">
-            <Radar className="size-5" aria-hidden="true" />
-          </span>
-          <h1 className="font-heading text-ink mt-5 text-2xl font-semibold tracking-tight">
-            No workspace yet
-          </h1>
-          <p className="text-ink-muted mt-2 text-sm leading-relaxed">
-            You&apos;re signed in as{" "}
-            <span className="text-ink font-medium">{user.email}</span>.
-            Subscribe with this same email and we&apos;ll provision your
-            workspace, first API key, and welcome email.
-          </p>
-          <div className="mt-6">
-            <Button asChild className="h-12 px-5">
-              <a href="/api/checkout">Get early access — $29/mo</a>
-            </Button>
-          </div>
-          <p className="text-ink-faint mt-4 text-xs leading-relaxed">
-            Already paid with a different address? Sign out and sign in with the
-            email you used at checkout.
-          </p>
-        </div>
-      </div>
+      <span
+        className={`inline-flex shrink-0 items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${VERDICT_STYLE[v]}`}
+      >
+        {VERDICT_LABELS[v]}
+        {score !== null ? ` · ${score}` : ""}
+      </span>
     );
   }
+  const label =
+    status === "failed"
+      ? "Failed"
+      : status === "pending_payment"
+        ? "Unpaid"
+        : "Researching…";
+  return (
+    <span className="border-line text-ink-muted inline-flex shrink-0 items-center rounded-full border px-2.5 py-0.5 text-xs">
+      {label}
+    </span>
+  );
+}
+
+function NoWorkspace({ email }: { email: string }) {
+  const proOpen = isProSaleOpen();
+  const checkOpen = isCheckSaleOpen();
+  return (
+    <div className="mx-auto max-w-2xl">
+      <div className="border-line bg-surface rounded-2xl border p-8">
+        <h1 className="font-heading text-ink text-2xl font-semibold tracking-tight">
+          No PainProof Pro workspace yet
+        </h1>
+        <p className="text-ink-muted mt-2 text-sm leading-relaxed">
+          You&apos;re signed in as{" "}
+          <span className="text-ink font-medium">{email}</span>. Pro gives you
+          30 idea checks a month, weekly niche-watch alerts and your report
+          history.
+        </p>
+        <div className="mt-6 flex flex-wrap gap-3">
+          {proOpen ? (
+            <Button asChild className="h-12 px-5">
+              <a href="/api/checkout">Get Pro — {PRO_PRICE_LABEL}/month</a>
+            </Button>
+          ) : null}
+          {checkOpen ? (
+            <Button asChild variant="outline" className="border-line h-12 px-5">
+              <Link href="/check">Or check one idea — {CHECK_PRICE_LABEL}</Link>
+            </Button>
+          ) : null}
+          {!proOpen && !checkOpen ? (
+            <Button asChild className="h-12 px-5">
+              <Link href="/?ref=dashboard#subscribe">Get the free weekly</Link>
+            </Button>
+          ) : null}
+        </div>
+        <p className="text-ink-faint mt-4 text-xs leading-relaxed">
+          Already subscribed with a different address? Sign out and sign in with
+          the email you used at checkout.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const [data, query] = await Promise.all([
+    getProDashboardData(),
+    searchParams,
+  ]);
+  const billingUnavailable = query.billing === "unavailable";
+  if (!data.org) return <NoWorkspace email={data.user.email} />;
 
   const {
+    org,
     plan,
+    pro,
     quota,
     used,
-    trialDaysLeft,
-    subreddits,
-    keywordSets,
-    apiKeys,
-    reports,
+    topicLimit,
+    checks,
+    topics,
+    canManageBilling,
   } = data;
-
-  const currentPlan = plan ?? "trial";
+  const left = Math.max(0, quota - used);
 
   return (
     <div className="flex flex-col gap-8">
-      <header className="flex flex-wrap items-start justify-between gap-4">
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-brand-light text-xs font-semibold tracking-[0.14em] uppercase">
-            {membership.role} workspace
+          <p className="text-ink-faint text-xs font-medium tracking-wide uppercase">
+            {org.name}
           </p>
-          <h1 className="font-heading text-ink mt-1.5 text-3xl font-semibold tracking-tight">
-            {membership.org.name}
+          <h1 className="font-heading text-ink mt-1 text-2xl font-semibold tracking-tight md:text-3xl">
+            PainProof {PLAN_LABELS[plan]}
           </h1>
-          <p className="text-ink-muted mt-1 text-sm">
-            /{membership.org.slug} · member since{" "}
-            {dateFormatter.format(membership.org.createdAt)}
-          </p>
         </div>
-        <Badge className={planBadgeClass(currentPlan)}>
-          {planLabel(currentPlan)}
-        </Badge>
+        {canManageBilling ? (
+          <form action={openBillingPortalAction}>
+            <Button
+              type="submit"
+              variant="outline"
+              className="border-line h-11 gap-2 px-4"
+            >
+              <CreditCard className="size-4" aria-hidden="true" />
+              Manage billing
+            </Button>
+          </form>
+        ) : null}
       </header>
 
-      {currentPlan === "expired_trial" ? (
-        <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-red-500/30 bg-red-500/10 px-5 py-4">
-          <p className="flex items-center gap-2 text-sm text-red-200">
-            <CircleAlert className="size-4" aria-hidden="true" />
-            Your trial has ended. Subscribe to keep generating reports.
+      {billingUnavailable ? (
+        <p
+          role="status"
+          className="border-line bg-surface text-ink-muted rounded-2xl border p-4 text-sm"
+        >
+          The billing portal isn&apos;t available right now. Email us and
+          we&apos;ll update or cancel your subscription for you.
+        </p>
+      ) : null}
+
+      {!pro ? (
+        <div className="border-urgency/30 bg-urgency/10 text-ink flex flex-col gap-3 rounded-2xl border p-5 sm:flex-row sm:items-center sm:justify-between">
+          <p className="flex items-start gap-2 text-sm">
+            <CircleAlert
+              className="text-urgency mt-0.5 size-4 shrink-0"
+              aria-hidden="true"
+            />
+            Your subscription isn&apos;t active, so checks and niche watch are
+            paused. Your past reports are still here.
           </p>
-          <Button asChild size="sm" className="h-9">
-            <a href="/api/checkout">Subscribe</a>
-          </Button>
-        </div>
-      ) : currentPlan === "trial" ? (
-        <div className="border-urgency/30 bg-urgency/10 flex flex-wrap items-center justify-between gap-4 rounded-xl border px-5 py-4">
-          <p className="text-urgency flex items-center gap-2 text-sm">
-            <CircleAlert className="size-4" aria-hidden="true" />
-            {trialDaysLeft === 0
-              ? "Your trial ends today."
-              : `Trial — ${trialDaysLeft} day${trialDaysLeft === 1 ? "" : "s"} left.`}
-          </p>
-          <Button asChild size="sm" className="h-9">
-            <a href="/api/checkout">Subscribe</a>
-          </Button>
+          {isProSaleOpen() ? (
+            <Button asChild className="h-11 shrink-0 px-5">
+              <a href="/api/checkout">Reactivate Pro</a>
+            </Button>
+          ) : null}
         </div>
       ) : null}
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-3">
         <Stat
-          label="Plan"
-          value={planLabel(currentPlan)}
-          hint={
-            currentPlan === "trial" && trialDaysLeft !== null
-              ? `${trialDaysLeft} days left`
-              : "Billed monthly"
-          }
-        />
-        <Stat
-          label="Reports this month"
+          label="Checks this month"
           value={`${used} / ${quota}`}
-          hint="Resets on the 1st (UTC)"
+          hint={pro ? `${left} left · resets on the 1st (UTC)` : undefined}
         />
-        <Stat label="Subreddits" value={String(subreddits.length)} />
-        <Stat label="API keys" value={String(apiKeys.length)} />
+        <Stat
+          label="Watched topics"
+          value={`${topics.length} / ${topicLimit}`}
+          hint="Digest every Monday"
+        />
+        <Stat
+          label="Reports"
+          value={String(checks.length)}
+          hint="Kept for as long as you're subscribed"
+        />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="flex flex-col gap-6 lg:col-span-2">
-          <Card
-            title="Recent reports"
-            action={
-              <span className="text-ink-faint inline-flex items-center gap-1 text-xs">
-                <FileText className="size-3.5" aria-hidden="true" />
-                {reports.length} shown
-              </span>
-            }
-          >
-            {reports.length === 0 ? (
-              <EmptyState>
-                No reports yet. Generate one with{" "}
-                <code className="text-ink bg-surface-2 rounded px-1.5 py-0.5 font-mono text-xs">
-                  POST /api/v1/reports
-                </code>{" "}
-                using an API key.
-              </EmptyState>
-            ) : (
-              <ul className="divide-line -my-2 divide-y">
-                {reports.map((report) => (
-                  <li key={report.id}>
-                    <Link
-                      href={`/dashboard/reports/${report.id}`}
-                      className="hover:bg-surface-2 -mx-2 flex items-center justify-between gap-4 rounded-lg px-2 py-3 transition-colors"
-                    >
-                      <div className="min-w-0">
-                        <p className="text-ink truncate text-sm font-medium">
-                          Report ·{" "}
-                          {dateFormatter.format(
-                            report.generatedAt ?? report.createdAt,
-                          )}
-                        </p>
-                        <p className="text-ink-faint mt-0.5 font-mono text-xs">
-                          {report.id.slice(0, 8)}
-                        </p>
-                      </div>
-                      <div className="flex shrink-0 items-center gap-3">
-                        <Badge className={statusBadgeClass(report.status)}>
-                          {report.status}
-                        </Badge>
-                        <ArrowRight
-                          className="text-ink-faint size-4"
-                          aria-hidden="true"
-                        />
-                      </div>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Card>
+      <Card
+        title="Check an idea"
+        icon={<FileSearch className="text-brand size-4" aria-hidden="true" />}
+      >
+        <ProCheckForm disabled={!pro || left === 0} />
+        {pro && left === 0 ? (
+          <p className="text-ink-faint mt-3 text-xs">
+            You&apos;ve used this month&apos;s checks. They reset on the 1st
+            (UTC).
+          </p>
+        ) : null}
+      </Card>
 
-          <Card
-            title="Tracked subreddits"
-            action={
-              <span className="text-ink-faint text-xs">
-                {subreddits.length} total
-              </span>
-            }
-          >
-            {subreddits.length === 0 ? (
-              <EmptyState>
-                Nothing tracked yet. Add communities with{" "}
-                <code className="text-ink bg-surface-2 rounded px-1.5 py-0.5 font-mono text-xs">
-                  POST /api/v1/subreddits
-                </code>
-                .
-              </EmptyState>
-            ) : (
-              <ul className="flex flex-wrap gap-2">
-                {subreddits.map((subreddit) => (
-                  <li
-                    key={subreddit.id}
-                    className="border-line bg-surface-2 text-ink-muted rounded-full border px-3 py-1 text-sm"
+      <div className="grid gap-8 lg:grid-cols-[1.4fr_1fr] [&>*]:min-w-0">
+        <Card title="Your checks">
+          {checks.length === 0 ? (
+            <p className="text-ink-faint text-sm">
+              No checks yet. Describe an idea above — the report is ready in
+              about 2 minutes.
+            </p>
+          ) : (
+            <ul className="divide-line -my-2 divide-y">
+              {checks.map((check) => (
+                <li key={check.id}>
+                  <Link
+                    href={`/dashboard/checks/${check.id}`}
+                    className="hover:text-brand-light group flex items-center justify-between gap-3 py-3"
                   >
-                    r/{subreddit.name}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Card>
-        </div>
+                    <span className="min-w-0">
+                      <span className="text-ink group-hover:text-brand-light block truncate text-sm font-medium">
+                        {check.headline ?? check.idea}
+                      </span>
+                      <span className="text-ink-faint text-xs">
+                        {dateFormatter.format(check.createdAt)}
+                      </span>
+                    </span>
+                    <CheckStatus
+                      status={check.status}
+                      verdict={check.verdict}
+                      score={check.score}
+                    />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
 
-        <div className="flex flex-col gap-6">
-          <Card title="Keyword sets">
-            {keywordSets.length === 0 ? (
-              <EmptyState>No keyword sets yet.</EmptyState>
-            ) : (
-              <ul className="flex flex-col gap-3">
-                {keywordSets.map((set) => (
-                  <li key={set.id}>
-                    <p className="text-ink text-sm font-medium">{set.name}</p>
-                    <p className="text-ink-faint mt-0.5 text-xs">
-                      {set.keywords.length > 0
-                        ? set.keywords.join(", ")
-                        : "No keywords"}
-                    </p>
+        <div className="flex flex-col gap-8">
+          <Card
+            title="Niche watch"
+            icon={<Eye className="text-brand size-4" aria-hidden="true" />}
+          >
+            <p className="text-ink-muted mb-4 text-sm leading-relaxed">
+              Every Monday we email you new complaints about these topics from
+              Hacker News and GitHub, quoted and linked.
+            </p>
+            {topics.length > 0 ? (
+              <ul className="mb-4 flex flex-wrap gap-2">
+                {topics.map((topic) => (
+                  <li
+                    key={topic.id}
+                    className="border-line bg-surface-2 text-ink flex items-center gap-1 rounded-full border py-1 pr-1 pl-3 text-sm"
+                  >
+                    {topic.topic}
+                    <form action={removeWatchTopicAction}>
+                      <input type="hidden" name="id" value={topic.id} />
+                      <button
+                        type="submit"
+                        aria-label={`Stop watching ${topic.topic}`}
+                        className="text-ink-faint hover:text-ink grid size-7 place-items-center rounded-full transition-colors"
+                      >
+                        <X className="size-3.5" aria-hidden="true" />
+                      </button>
+                    </form>
                   </li>
                 ))}
               </ul>
-            )}
+            ) : null}
+            <WatchTopicForm disabled={!pro || topics.length >= topicLimit} />
           </Card>
 
           <Card
-            title="API keys"
-            action={
-              <span className="text-ink-faint inline-flex items-center gap-1 text-xs">
-                <KeyRound className="size-3.5" aria-hidden="true" />
-                {apiKeys.length}
-              </span>
+            title="PainProof Weekly"
+            icon={
+              <Newspaper className="text-brand size-4" aria-hidden="true" />
             }
           >
-            {apiKeys.length === 0 ? (
-              <EmptyState>
-                Mint a key with{" "}
-                <code className="text-ink bg-surface-2 rounded px-1.5 py-0.5 font-mono text-xs">
-                  POST /api/v1/keys
-                </code>
-                .
-              </EmptyState>
-            ) : (
-              <ul className="flex flex-col gap-3">
-                {apiKeys.map((key) => (
-                  <li
-                    key={key.id}
-                    className="flex items-start justify-between gap-3"
-                  >
-                    <div className="min-w-0">
-                      <p className="text-ink truncate text-sm font-medium">
-                        {key.name}
-                      </p>
-                      <p className="text-ink-faint mt-0.5 text-xs">
-                        {key.lastUsedAt
-                          ? `Used ${dateFormatter.format(key.lastUsedAt)}`
-                          : "Never used"}
-                      </p>
-                    </div>
-                    <span className="text-signal shrink-0 text-xs">Active</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-            <p className="text-ink-faint border-line mt-4 border-t pt-3 text-xs leading-relaxed">
-              Keys are shown only once at creation. Revoke a leaked key with{" "}
-              <code className="text-ink bg-surface-2 rounded px-1.5 py-0.5 font-mono text-xs">
-                DELETE /api/v1/keys/:id
-              </code>
-              .
+            <p className="text-ink-muted text-sm leading-relaxed">
+              5–7 problems worth building, every week, with the proof linked.
             </p>
+            <Link
+              href="/weekly"
+              className="text-brand-light hover:text-brand mt-3 inline-flex items-center gap-1 text-sm"
+            >
+              Read past issues
+              <ArrowRight className="size-3.5" aria-hidden="true" />
+            </Link>
           </Card>
-
-          <div className="border-line bg-surface rounded-2xl border p-5">
-            <p className="text-ink flex items-center gap-2 text-sm font-medium">
-              <Code2 className="text-brand-light size-4" aria-hidden="true" />
-              Building with the API?
-            </p>
-            <p className="text-ink-muted mt-2 text-sm leading-relaxed">
-              The welcome email includes a copy-paste quickstart. Full reference
-              lives in the repository README.
-            </p>
-          </div>
         </div>
       </div>
     </div>

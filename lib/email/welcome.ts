@@ -46,7 +46,7 @@ export async function sendWelcomeEmail(
   const { data, error } = await resend.emails.send({
     from,
     to: input.to,
-    subject: "Your PainProof API key",
+    subject: "Welcome to PainProof Pro",
     text: welcomeText(input),
     html: welcomeHtml(input),
   });
@@ -74,56 +74,44 @@ export async function sendWelcomeEmail(
 /* Content                                                             */
 /* ------------------------------------------------------------------ */
 
-function quickstartLines(input: WelcomeEmailInput): string[] {
+export function welcomeText(input: WelcomeEmailInput): string {
   return [
-    `# 1. Verify your key`,
-    `curl -H "Authorization: Bearer ${input.apiKey}" ${site.url}/api/v1/me`,
+    `Welcome to PainProof Pro, ${input.orgName}!`,
     ``,
-    `# 2. Track the communities your customers live in`,
-    `curl -X POST ${site.url}/api/v1/subreddits \\`,
-    `  -H "Authorization: Bearer ${input.apiKey}" \\`,
-    `  -H "Content-Type: application/json" \\`,
-    `  -d '{"name": "SaaS"}'`,
+    `Sign in with this email address to start checking ideas:`,
+    `  ${site.url}/login`,
     ``,
-    `# 3. Generate your first opportunity report`,
-    `curl -X POST ${site.url}/api/v1/reports \\`,
-    `  -H "Authorization: Bearer ${input.apiKey}" \\`,
-    `  -H "Content-Type: application/json" \\`,
-    `  -d '{}'`,
-  ];
-}
-
-function welcomeText(input: WelcomeEmailInput): string {
-  return [
-    `Welcome to PainProof, ${input.orgName}!`,
+    `What you get every month:`,
+    `  - 30 idea checks: verdict, PainProof Score, linked quotes, competitors, a 48-hour test`,
+    `  - Niche watch: add up to 5 topics, get new complaints about them every Monday`,
+    `  - Every report saved in your dashboard`,
     ``,
-    `Your API key (treat it like a password — it is shown only this once):`,
-    ``,
+    `For developers, your API key (shown only this once — treat it like a password):`,
     `  ${input.apiKey}`,
+    `  curl -H "Authorization: Bearer <key>" ${site.url}/api/v1/me`,
     ``,
-    ...quickstartLines(input),
-    ``,
-    `Reports rank pain themes by urgency, willingness to pay, and frequency,`,
-    `with verbatim evidence and source links for every theme.`,
-    ``,
+    `Manage or cancel billing anytime from the dashboard.`,
     `Questions? Just reply to this email or write to ${site.email}.`,
   ].join("\n");
 }
 
 function welcomeHtml(input: WelcomeEmailInput): string {
-  const curl = quickstartLines(input).join("\n");
   return `<!doctype html>
 <html>
   <body style="margin:0;padding:32px;background:#0a0a0a;color:#fafafa;font-family:Geist,-apple-system,Segoe UI,Roboto,sans-serif;line-height:1.6">
     <div style="max-width:560px;margin:0 auto">
-      <p style="font-size:13px;letter-spacing:0.08em;text-transform:uppercase;color:#818cf8;font-weight:600">PainProof</p>
-      <h1 style="font-size:22px;margin:8px 0 16px">Welcome, ${escapeHtml(input.orgName)} 🎉</h1>
-      <p style="color:#a1a1aa;margin:0 0 8px">Your account is live. Here is your API key — treat it like a password, it is shown only this once:</p>
+      <p style="font-size:13px;letter-spacing:0.08em;text-transform:uppercase;color:#818cf8;font-weight:600">PainProof Pro</p>
+      <h1 style="font-size:22px;margin:8px 0 16px">Welcome, ${escapeHtml(input.orgName)}</h1>
+      <p style="color:#a1a1aa;margin:0 0 20px">Sign in with this email address to check your first idea.</p>
+      <a href="${site.url}/login" style="display:inline-block;background:#6366f1;color:#fafafa;text-decoration:none;padding:12px 20px;border-radius:10px;font-weight:600">Sign in to PainProof</a>
+      <ul style="color:#a1a1aa;margin:24px 0 0;padding-left:18px">
+        <li><strong style="color:#fafafa">30 idea checks</strong> a month — verdict, score, linked quotes, competitors, a 48-hour test</li>
+        <li><strong style="color:#fafafa">Niche watch</strong> — new complaints about up to 5 topics, every Monday</li>
+        <li>Every report saved in your dashboard</li>
+      </ul>
+      <p style="color:#82828b;margin:28px 0 8px;font-size:13px">For developers — your API key, shown only this once:</p>
       <pre style="background:#161616;border:1px solid #1f1f1f;border-radius:8px;padding:14px;color:#10b981;font-size:13px;overflow-x:auto">${escapeHtml(input.apiKey)}</pre>
-      <p style="color:#a1a1aa;margin:24px 0 8px"><strong style="color:#fafafa">Quick start</strong></p>
-      <pre style="background:#161616;border:1px solid #1f1f1f;border-radius:8px;padding:14px;color:#d4d4d8;font-size:12px;overflow-x:auto">${escapeHtml(curl)}</pre>
-      <p style="color:#a1a1aa;margin:24px 0 0">Reports rank pain themes by <strong style="color:#fafafa">urgency</strong>, <strong style="color:#fafafa">willingness to pay</strong>, and <strong style="color:#fafafa">frequency</strong> — with verbatim evidence and source links for every theme.</p>
-      <p style="color:#a1a1aa;margin:16px 0 0">Questions? Reply to this email or write to <a href="mailto:${site.email}" style="color:#818cf8">${site.email}</a>.</p>
+      <p style="color:#a1a1aa;margin:16px 0 0">Manage or cancel billing from the dashboard. Questions? Reply to this email or write to <a href="mailto:${site.email}" style="color:#818cf8">${site.email}</a>.</p>
     </div>
   </body>
 </html>`;

@@ -43,3 +43,40 @@ export function reportQuota(plan: EffectivePlan): number {
 export function startOfUtcMonth(now: Date = new Date()): Date {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
 }
+
+/* ------------------------------------------------------------------ */
+/* PainProof Pro                                                       */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Idea checks per calendar month (UTC) included in a subscription. Each check
+ * costs real model tokens, so "unlimited" is a fair-use cap. `starter` is the
+ * legacy subscription price and gets the same allowance as Pro.
+ */
+const CHECK_QUOTA: Record<EffectivePlan, number> = {
+  trial: 0,
+  expired_trial: 0,
+  starter: 30,
+  pro: 30,
+};
+
+/** Niche-watch topics a workspace may follow. */
+const WATCH_TOPIC_LIMIT: Record<EffectivePlan, number> = {
+  trial: 0,
+  expired_trial: 0,
+  starter: 5,
+  pro: 5,
+};
+
+export function checkQuota(plan: EffectivePlan): number {
+  return CHECK_QUOTA[plan];
+}
+
+export function watchTopicLimit(plan: EffectivePlan): number {
+  return WATCH_TOPIC_LIMIT[plan];
+}
+
+/** True when the plan has subscription features (Pro or legacy starter). */
+export function hasProAccess(plan: EffectivePlan): boolean {
+  return plan === "pro" || plan === "starter";
+}
