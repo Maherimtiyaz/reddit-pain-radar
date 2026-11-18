@@ -4,7 +4,8 @@ import { eq } from "drizzle-orm";
 import Stripe from "stripe";
 
 import { adminDb } from "@/db/admin";
-import { apiKeys, orgs, stripeEvents } from "@/db/schema";
+import { apiKeys, ideaChecks, orgs, stripeEvents } from "@/db/schema";
+import { generateAccessToken } from "@/lib/check/store";
 
 /**
  * End-to-end smoke test for the Stripe billing webhook.
@@ -111,6 +112,187 @@ function subscriptionEvent(input: {
   } as unknown as Stripe.Event;
 }
 
+/** A Check My Idea checkout session event (one-time payment). */
+function checkSessionEvent(input: {
+  type?:
+    "checkout.session.completed" | "checkout.session.async_payment_succeeded";
+  sessionId: string;
+  checkId: string;
+  token: string;
+  paymentStatus: "paid" | "unpaid" | "no_payment_required";
+}): Stripe.Event {
+  sequence += 1;
+  return {
+    id: `evt_smoke_check_${Date.now()}_${sequence}`,
+    object: "event",
+    api_version: "2025-01-27.acacia",
+    created: Math.floor(Date.now() / 1000),
+    livemode: false,
+    pending_webhooks: 1,
+    request: { id: null, idempotency_key: null },
+    type: input.type ?? "checkout.session.completed",
+    data: {
+      object: {
+        id: input.sessionId,
+        object: "checkout.session",
+        mode: "payment",
+        payment_status: input.paymentStatus,
+        customer: null,
+        customer_details: { email: "buyer@painproof.test" },
+        metadata: {
+          kind: "idea_check",
+          ideaCheckId: input.checkId,
+          t: input.token,
+        },
+      },
+    },
+  } as unknown as Stripe.Event;
+}
+
+async function insertPendingCheck(
+  sessionId: string,
+): Promise<{ id: string; token: string }> {
+  const { token, tokenHash } = generateAccessToken();
+  const [row] = await adminDb
+    .insert(ideaChecks)
+    .values({
+      idea: "Smoke test idea: invoice reminders for freelance designers",
+      email: "buyer@painproof.test",
+      origin: "checkout",
+      status: "pending_payment",
+      accessTokenHash: tokenHash,
+      stripeCheckoutSessionId: sessionId,
+    })
+    .returning({ id: ideaChecks.id });
+  return { id: row.id, token };
+}
+
+async function checkStatus(id: string) {
+  const [row] = await adminDb
+    .select({
+      status: ideaChecks.status,
+      paidAt: ideaChecks.paidAt,
+      error: ideaChecks.error,
+    })
+    .from(ideaChecks)
+    .where(eq(ideaChecks.id, id));
+  return row;
+}
+
+async function ideaCheckSmoke(suffix: number): Promise<string[]> {
+  console.log("\n  Check My Idea purchases");
+  const eventIds: string[] = [];
+  const send = async (event: Stripe.Event) => {
+    eventIds.push(event.id);
+    return post(event);
+  };
+
+  // 1. Paid card checkout -> queued (then run after the response).
+  const paidSession = `cs_smoke_paid_${suffix}`;
+  const paid = await insertPendingCheck(paidSession);
+  const paidEvent = checkSessionEvent({
+    sessionId: paidSession,
+    checkId: paid.id,
+    token: paid.token,
+    paymentStatus: "paid",
+  });
+  const first = await send(paidEvent);
+  const afterPaid = await checkStatus(paid.id);
+  check("paid check session -> 200", first.status === 200, first);
+  check(
+    "paid check leaves pending_payment and records paid_at",
+    afterPaid?.status !== "pending_payment" &&
+      afterPaid?.paidAt instanceof Date,
+    afterPaid,
+  );
+
+  // 2. Redelivery is a no-op.
+  const again = await post(paidEvent);
+  check("redelivered check event -> 200", again.status === 200, again);
+
+  // 3. Async payment: unpaid at completion, queued on async success.
+  const asyncSession = `cs_smoke_async_${suffix}`;
+  const pending = await insertPendingCheck(asyncSession);
+  await send(
+    checkSessionEvent({
+      sessionId: asyncSession,
+      checkId: pending.id,
+      token: pending.token,
+      paymentStatus: "unpaid",
+    }),
+  );
+  check(
+    "unpaid completion keeps the check pending",
+    (await checkStatus(pending.id))?.status === "pending_payment",
+  );
+  await send(
+    checkSessionEvent({
+      type: "checkout.session.async_payment_succeeded",
+      sessionId: asyncSession,
+      checkId: pending.id,
+      token: pending.token,
+      paymentStatus: "paid",
+    }),
+  );
+  check(
+    "async_payment_succeeded queues the check",
+    (await checkStatus(pending.id))?.status !== "pending_payment",
+  );
+
+  // 4. A session id that doesn't match the check never unlocks it.
+  const mismatch = await insertPendingCheck(`cs_smoke_real_${suffix}`);
+  await send(
+    checkSessionEvent({
+      sessionId: `cs_smoke_forged_${suffix}`,
+      checkId: mismatch.id,
+      token: mismatch.token,
+      paymentStatus: "paid",
+    }),
+  );
+  check(
+    "mismatched session id keeps the check pending",
+    (await checkStatus(mismatch.id))?.status === "pending_payment",
+  );
+
+  // 5. 100%-off promo code (no payment required) counts as paid.
+  const freeSession = `cs_smoke_free_${suffix}`;
+  const free = await insertPendingCheck(freeSession);
+  await send(
+    checkSessionEvent({
+      sessionId: freeSession,
+      checkId: free.id,
+      token: free.token,
+      paymentStatus: "no_payment_required",
+    }),
+  );
+  check(
+    "100%-off promo code queues the check",
+    (await checkStatus(free.id))?.status !== "pending_payment",
+  );
+
+  // 6. The run after the response reaches a terminal state.
+  let terminal = await checkStatus(paid.id);
+  for (
+    let i = 0;
+    i < 90 && terminal && !["complete", "failed"].includes(terminal.status);
+    i++
+  ) {
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    terminal = await checkStatus(paid.id);
+  }
+  check(
+    "paid check runs after the webhook responds (complete, or failed with a reason)",
+    terminal?.status === "complete" ||
+      (terminal?.status === "failed" && Boolean(terminal.error)),
+    terminal,
+  );
+
+  for (const id of [paid.id, pending.id, mismatch.id, free.id]) {
+    await adminDb.delete(ideaChecks).where(eq(ideaChecks.id, id));
+  }
+  return eventIds;
+}
+
 async function post(
   event: Stripe.Event,
   options: { signature?: string | null } = {},
@@ -160,8 +342,8 @@ async function main(): Promise<void> {
   });
   const checkoutLocation = checkout.headers.get("location") ?? "";
   check(
-    "GET /api/checkout (no price configured) -> 302 to waitlist",
-    checkout.status === 302 && checkoutLocation.endsWith("/#waitlist"),
+    "GET /api/checkout (no price configured) -> 302 to newsletter signup",
+    checkout.status === 302 && checkoutLocation.endsWith("/#subscribe"),
     { status: checkout.status, location: checkoutLocation },
   );
 
@@ -242,7 +424,15 @@ async function main(): Promise<void> {
     downgraded[0]?.plan,
   );
 
+  // -- Check My Idea purchases --------------------------------------------
+  const checkEventIds = await ideaCheckSmoke(suffix);
+
   // -- cleanup -----------------------------------------------------------
+  for (const id of checkEventIds) {
+    await adminDb
+      .delete(stripeEvents)
+      .where(eq(stripeEvents.stripeEventId, id));
+  }
   if (org[0]) {
     await adminDb.delete(orgs).where(eq(orgs.id, org[0].id));
   }

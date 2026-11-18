@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { motion } from "motion/react";
 import { ArrowRight, Check } from "lucide-react";
 
@@ -157,7 +158,7 @@ function MockCheck() {
   );
 }
 
-export function Hero() {
+export function Hero({ checkOpen = false }: { checkOpen?: boolean }) {
   return (
     <section
       id="top"
@@ -237,7 +238,19 @@ export function Hero() {
           </motion.ul>
 
           <motion.p variants={staggerItem} className="text-ink-faint text-xs">
-            {hero.note}
+            {checkOpen ? (
+              <>
+                {hero.noteOpen}{" "}
+                <Link
+                  href="/check"
+                  className="text-brand-light hover:text-brand underline-offset-4 hover:underline"
+                >
+                  {hero.noteOpenLink}
+                </Link>
+              </>
+            ) : (
+              hero.noteSoon
+            )}
           </motion.p>
         </motion.div>
 
